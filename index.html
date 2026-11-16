@@ -22,7 +22,7 @@
   html{scroll-padding-top:env(safe-area-inset-top,0px)}
   @media print{body *{visibility:hidden}#print-area,#print-area *{visibility:visible}#print-area{position:absolute;left:0;top:0;width:100%;background:#fff!important;color:#000!important;padding:12px}.no-print{display:none!important}}
   .fade{animation:fade .25s ease-out}@keyframes fade{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
-  .pulse-dot{animation:pd 1.6s infinite}@keyframes pd{0%{box-shadow:0 0 0 0 #ef4444aa}100%{box-shadow:0 0 0 12px #ef444400}}
+  .pulse-dot{animation:pd 1.6s infinite}@keyframes pd{0%{box-shadow:0 0 0 0 #ef4444aa}100%{box-shadow:0 0 0 12px #ef444400}}[hidden]{display:none!important}
 </style>
 </head>
 <body class="h-full bg-slate-100 text-slate-800 dark:bg-slate-950 dark:text-slate-100 font-sans antialiased">
@@ -223,13 +223,13 @@ async function agendar(){
 let SESS=null,chan=null,loadedOnce=false;
 const isAdmin=()=>SESS?.user?.app_metadata?.role==='admin';
 async function login(){
-  const e = $('l-err'); 
+  const e = $('l-err');
   if(e) e.hidden = true;
   const btn = document.querySelector('#login button');
   if(btn) btn.textContent = 'Ingresando...';
   try {
     const {data, error} = await sb.auth.signInWithPassword({
-      email: val('l-e'), 
+      email: val('l-e'),
       password: $('l-p').value
     });
     if(error){
@@ -240,11 +240,10 @@ async function login(){
       if(btn) btn.textContent = 'Ingresar';
       return;
     }
+    SESS = data.session;
     $('l-p').value = '';
-    // Ocultar la ventana de login inmediatamente
     $('login').hidden = true;
     if(btn) btn.textContent = 'Ingresar';
-    
     location.hash = 'taller';
     route();
   } catch(err) {
