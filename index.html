@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="es-PE" class="h-full">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#ef4444">
+<title>MotoTech Pro · Taller de Motos</title>
+<script>
+  /* Tema antes de pintar para evitar parpadeo */
+  (function(){try{var t=localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.classList.toggle('dark',t==='dark')}catch(e){}})();
+</script>
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script>
+  tailwind.config={darkMode:'class',theme:{extend:{fontFamily:{sans:['Inter','system-ui','sans-serif']},colors:{brand:{50:'#fef2f2',100:'#fee2e2',500:'#ef4444',600:'#dc2626',700:'#b91c1c'}}}}};
+</script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.56.0/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root{padding-top:env(safe-area-inset-top,0px)}
+  html{scroll-padding-top:env(safe-area-inset-top,0px)}
+  @media print{body *{visibility:hidden}#print-area,#print-area *{visibility:visible}#print-area{position:absolute;left:0;top:0;width:100%;background:#fff!important;color:#000!important;padding:12px}.no-print{display:none!important}}
+  .fade{animation:fade .25s ease-out}@keyframes fade{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+  .pulse-dot{animation:pd 1.6s infinite}@keyframes pd{0%{box-shadow:0 0 0 0 #ef4444aa}100%{box-shadow:0 0 0 12px #ef444400}}
+</style>
+</head>
+<body class="h-full bg-slate-100 text-slate-800 dark:bg-slate-950 dark:text-slate-100 font-sans antialiased">
+
+<!-- HEADER -->
+<header class="sticky top-0 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur border-b border-slate-200 dark:border-slate-800">
+  <div class="max-w-7xl mx-auto px-3 sm:px-6 h-14 flex items-center justify-between gap-2">
+    <a href="#cliente" class="flex items-center gap-2 font-extrabold text-lg"><span class="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-600 to-orange-500 grid place-items-center text-white"><i class="fa-solid fa-motorcycle"></i></span>Moto<span class="text-brand-500">Tech</span></a>
+    <div class="flex items-center gap-2">
+      <a id="lnk-cliente" href="#cliente" class="px-3 py-1.5 rounded-lg text-sm font-semibold">Clientes</a>
+      <a id="lnk-taller" href="#taller" class="px-3 py-1.5 rounded-lg text-sm font-semibold"><i class="fa-solid fa-lock text-xs"></i> Taller</a>
+      <button onclick="toggleTheme()" class="w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-700" aria-label="Cambiar tema"><i class="fa-solid fa-circle-half-stroke"></i></button>
+      <button id="btn-logout" hidden onclick="logout()" class="px-3 py-1.5 rounded-lg text-sm border border-slate-200 dark:border-slate-700">Salir</button>
+    </div>
+  </div>
+  <div id="offline" hidden class="bg-amber-500 text-white text-xs text-center py-1">Sin conexión con Supabase: mostrando la última copia guardada (solo lectura)</div>
+</header>
+
+<!-- ================= VISTA PÚBLICA ================= -->
+<main id="cliente" class="max-w-xl mx-auto px-3 py-4 pb-24 space-y-4">
+  <section class="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 shadow-sm">
+    <h1 class="text-xl font-extrabold">Consulta tu moto</h1>
+    <p class="text-sm text-slate-500">Ingresa tu placa y, si quieres, el kilometraje actual.</p>
+    <div class="grid grid-cols-2 gap-2 mt-3">
+      <input id="k-pla" placeholder="Placa" autocapitalize="characters" autocomplete="off" class="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-sm uppercase" onkeydown="if(event.key==='Enter')consultar()">
+      <input id="k-km" type="number" inputmode="numeric" min="0" placeholder="Km actual (opcional)" class="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-sm">
+    </div>
+    <button onclick="consultar()" class="mt-3 w-full rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold py-3"><i class="fa-solid fa-magnifying-glass"></i> Consultar ahora</button>
+  </section>
+  <div id="k-out"></div>
+
+  <section class="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 shadow-sm space-y-3">
+    <h2 class="font-bold text-lg"><i class="fa-regular fa-calendar-check text-brand-500"></i> Agendar cita</h2>
+    <p class="text-xs text-slate-500">Usa la placa y el km de arriba. Se guarda tu reserva y se abre WhatsApp con el resumen.</p>
+    <div class="grid grid-cols-2 gap-2">
+      <input id="b-nom" placeholder="Tu nombre" autocomplete="name" class="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-sm">
+      <input id="b-tel" type="tel" placeholder="Tu celular" autocomplete="tel" class="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-sm">
+    </div>
+    <select id="b-srv" onchange="$('b-oil').hidden=this.value!=='Cambio de aceite'" class="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-sm"><option>Cambio de aceite</option><option>Frenos</option><option>Kit de arrastre</option><option>Transmisión</option><option>Mantenimiento General</option><option>Falla eléctrica / mecánica</option></select>
+    <select id="b-oil" class="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-sm"><option>Aceite mineral</option><option>Aceite semisintético</option><option>Aceite sintético</option></select>
+    <div id="b-chk" class="flex flex-wrap gap-2 text-xs">
+      <label class="px-3 py-1.5 rounded-full border border-slate-300 dark:border-slate-700"><input type="checkbox" value="Falta potencia" class="accent-red-500"> Falta potencia</label>
+      <label class="px-3 py-1.5 rounded-full border border-slate-300 dark:border-slate-700"><input type="checkbox" value="Ruido al frenar" class="accent-red-500"> Ruido al frenar</label>
+      <label class="px-3 py-1.5 rounded-full border border-slate-300 dark:border-slate-700"><input type="checkbox" value="Frena poco" class="accent-red-500"> Frena poco</label>
+      <label class="px-3 py-1.5 rounded-full border border-slate-300 dark:border-slate-700"><input type="checkbox" value="Batería descargada" class="accent-red-500"> Batería descargada</label>
+      <label class="px-3 py-1.5 rounded-full border border-slate-300 dark:border-slate-700"><input type="checkbox" value="Humo blanco" class="accent-red-500"> Humo blanco</label>
+      <label class="px-3 py-1.5 rounded-full border border-slate-300 dark:border-slate-700"><input type="checkbox" value="Cadena suelta" class="accent-red-500"> Cadena suelta</label>
+    </div>
+    <textarea id="b-det" rows="2" placeholder="Detalles adicionales o repuestos" class="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-sm"></textarea>
+    <div class="grid grid-cols-2 gap-2">
+      <input id="b-f" type="date" onchange="citaEdit=true" class="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-sm">
+      <select id="b-t" class="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-sm"><option>Mañana</option><option>Tarde</option></select>
+    </div>
+    <button id="b-btn" onclick="agendar()" class="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3"><i class="fa-brands fa-whatsapp"></i> Confirmar cita por WhatsApp</button>
+  </section>
+</main>
+
+<!-- ================= VISTA PRIVADA ================= -->
+<div id="taller" hidden class="max-w-7xl mx-auto md:flex">
+  <aside class="hidden md:block w-56 shrink-0 p-3 sticky top-14 self-start h-[calc(100vh-3.5rem)]"><nav id="side" class="space-y-1"></nav></aside>
+  <main id="view" class="flex-1 min-w-0 px-3 sm:px-6 py-4 pb-28 md:pb-8"></main>
+</div>
+<nav id="bottom" hidden class="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex pb-[env(safe-area-inset-bottom,0px)]"></nav>
+
+<!-- LOGIN -->
+<div id="login" hidden class="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4">
+  <div class="w-full max-w-sm rounded-2xl bg-white dark:bg-slate-900 p-5 space-y-3">
+    <h3 class="text-lg font-bold"><i class="fa-solid fa-lock text-brand-500"></i> Acceso del taller</h3>
+    <input id="l-e" type="email" placeholder="Correo" autocomplete="username" class="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-sm">
+    <input id="l-p" type="password" placeholder="Contraseña" autocomplete="current-password" onkeydown="if(event.key==='Enter')login()" class="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-sm">
+    <div id="l-err" hidden class="text-sm text-red-500 font-semibold"></div>
+    <button onclick="login()" class="w-full rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold py-2.5">Ingresar</button>
+    <button onclick="$('login').hidden=true;location.hash='cliente'" class="w-full text-sm text-slate-500">Cancelar</button>
+  </div>
+</div>
+
+<!-- MODAL GENÉRICO -->
+<div id="modal" hidden class="fixed inset-0 z-50 bg-black/60 overflow-y-auto p-3 sm:p-6" onclick="if(event.target===this)closeM()">
+  <div id="modal-body" class="mx-auto max-w-2xl rounded-2xl bg-white dark:bg-slate-900 p-4 sm:p-5 my-4 fade"></div>
+</div>
+<div id="spin" hidden class="fixed top-16 right-3 z-50 rounded-full bg-slate-900 text-white px-3 py-1.5 text-xs shadow"><i class="fa-solid fa-spinner animate-spin"></i> Cargando…</div>
+<div id="toast" class="fixed left-1/2 -translate-x-1/2 bottom-24 md:bottom-6 z-[60] rounded-xl px-4 py-2 text-sm font-semibold text-white opacity-0 pointer-events-none transition-opacity"></div>
+
+<script>
+/* ===================== CONFIGURACIÓN ===================== */
+const SUPABASE_URL      = 'https://rlmmpfybslnolzhgwfim.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_Nflyj1knHgidpAH4N19kBQ_XxBEe2Gm';
+const TALLER_WA = '51922684664', CC = '51', LOCALE = 'es-PE', MONEDA = 'S/';
+const CFG_DEF = {nombre:'MOTO TECH TALLER',ruc:'RUC: ',tel:'+51 922 684 664',dir:'',pie:'¡Gracias por su preferencia! Garantía de 30 días.',gsheet:'https://docs.google.com/spreadsheets/d/e/2PACX-1vRC5xxaXyGyKHhr8idIGdLALdZIhEwn27Q_TtrFPpghGjReCvRAPr9XK-HNatd-ag/pubhtml'};
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* ===================== UTILIDADES ===================== */
+const $=i=>document.getElementById(i), val=i=>$(i).value.trim();
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const norm=p=>String(p||'').toUpperCase().replace(/[^A-Z0-9-]/g,'');
+const dstr=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const hoy=()=>dstr(new Date());
+const fmtF=f=>f?String(f).split('-').reverse().join('/'):'';
+const addDays=n=>{const d=new Date();d.setDate(d.getDate()+n);return dstr(d)};
+const diasHasta=f=>Math.round((new Date(f+'T00:00:00')-new Date(hoy()+'T00:00:00'))/864e5);
+const money=n=>MONEDA+' '+Number(n||0).toLocaleString(LOCALE,{minimumFractionDigits:2,maximumFractionDigits:2});
+const kmf=n=>Number(n||0).toLocaleString(LOCALE)+' km';
+const num=v=>parseFloat(String(v??'').replace(/[^\d.-]/g,''))||0;
+const waNum=t=>{let d=String(t||'').replace(/\D/g,'');if(d&&d.length<=9)d=CC+d;return d};
+const waOpen=(tel,msg)=>window.open('https://wa.me/'+waNum(tel)+'?text='+encodeURIComponent(msg),'_blank');
+const skel=(n=3)=>Array(n).fill('<div class="h-20 rounded-2xl bg-slate-200 dark:bg-slate-800 animate-pulse mb-3"></div>').join('');
+const CARD='rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm';
+const INP='w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-sm';
+const BTN='rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold px-4 py-2.5 text-sm';
+const BTN2='rounded-xl border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm font-semibold';
+const PILL={'-1':'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',0:'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',1:'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',2:'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'};
+const BAR={'-1':'bg-slate-400',0:'bg-emerald-500',1:'bg-amber-500',2:'bg-red-500'};
+const LV={'-1':'Sin registro',0:'Al día',1:'Próximo',2:'Vencido'};
+const pill=l=>`<span class="inline-block text-[11px] font-bold rounded-full px-2.5 py-0.5 ${PILL[l]}">${LV[l]}</span>`;
+const bar=(l,p)=>`<div class="h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden mt-2"><i class="block h-full rounded-full transition-all duration-700 ${BAR[l]}" style="width:${l<0?0:p}%"></i></div>`;
+
+let _busy=0;
+function toast(m,t){const e=$('toast');e.textContent=m;e.className='fixed left-1/2 -translate-x-1/2 bottom-24 md:bottom-6 z-[60] rounded-xl px-4 py-2 text-sm font-semibold text-white pointer-events-none transition-opacity opacity-100 '+(t==='err'?'bg-red-600':t==='warn'?'bg-amber-600':'bg-emerald-600');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.replace('opacity-100','opacity-0'),2800)}
+async function run(p){_busy++;$('spin').hidden=false;try{const{data,error}=await p;if(error){toast(error.message||'Error de conexión','err');throw error}return data}finally{if(--_busy<=0)$('spin').hidden=true}}
+window.addEventListener('unhandledrejection',e=>e.preventDefault()); /* run() ya notifica con Toast */
+function toggleTheme(){const d=document.documentElement.classList.toggle('dark');localStorage.setItem('theme',d?'dark':'light')}
+function modal(h){$('modal-body').innerHTML=h;$('modal').hidden=false}
+function closeM(){$('modal').hidden=true;$('modal-body').innerHTML=''}
+
+/* ===================== REGLAS DE MANTENIMIENTO ===================== */
+const TIPOS=['Cambio de aceite','Mantenimiento general','Frenos','Kit de arrastre y cadena','Limpieza/tensado de cadena','Transmisión','Eléctrico','Llantas','Otro'];
+const COMPS=[
+ {id:'aceite',n:'Cambio de aceite',i:'🛢️',int:3000,warn:2500,t:['Cambio de aceite']},
+ {id:'cad',n:'Limpieza y tensado de cadena',i:'⛓️',int:1000,warn:850,t:['Limpieza/tensado de cadena','Kit de arrastre y cadena','Transmisión']},
+ {id:'kit',n:'Kit de arrastre',i:'⚙️',int:15000,warn:13500,t:['Kit de arrastre y cadena']},
+ {id:'fre',n:'Frenos (pastillas y líquido)',i:'🛑',int:5000,warn:4250,t:['Frenos']},
+ {id:'gen',n:'Mantenimiento general',i:'🔧',int:10000,warn:8500,t:['Mantenimiento general']}];
+/* sv: servicios de la moto ordenados del más reciente al más antiguo */
+function evalAll(sv,k){
+  const ev=COMPS.map(c=>{const s=sv.find(x=>c.t.includes(x.tipo));if(!s)return{c,lvl:-1};
+    const nx=(c.id==='aceite'&&s.pkm)?+s.pkm:(+s.km||0)+c.int,rest=nx-k,since=c.int-rest;
+    let lvl=rest<=0?2:(since>=c.warn?1:0);if(c.id==='aceite'&&s.pfe&&diasHasta(s.pfe)<0)lvl=2;
+    return{c,lvl,nx,rest,pct:Math.max(3,Math.min(100,since/c.int*100))}});
+  let w=-1,pc=0;ev.forEach(e=>{if(e.lvl>w)w=e.lvl;if(e.lvl>=0&&e.pct>pc)pc=e.pct});return{ev,w,pc};
+}
+const FASES=['Recibido','En diagnóstico','En reparación','Listo para recoger'],FI=['📥','🔍','🔧','✅'];
+
+/* ===================== VISTA PÚBLICA (#cliente) ===================== */
+let C=null,citaEdit=false,_poll=null;
+async function consultar(silent){
+  const p=norm($('k-pla').value),o=$('k-out');
+  if(!p){toast('Ingresa tu placa','warn');return}
+  if(silent!==true)o.innerHTML=skel(3);
+  try{
+    const d=await run(sb.rpc('consulta_publica',{p_placa:p}));
+    if(!d||!d.moto){o.innerHTML='<div class="'+CARD+' p-4"><b class="text-amber-500">No encontramos esa placa.</b><div class="text-sm text-slate-500">Acércate al taller para registrar tu moto.</div></div>';C=null;return}
+    const m=d.moto,k=$('k-km').value===''?m.km:+$('k-km').value,r=evalAll(d.servicios||[],k);
+    C={m,k,r};if(silent!==true)citaEdit=false;
+    const tit=r.w==2?'Mantenimiento vencido':r.w==1?'Próximo a vencer':r.w==0?'Tu moto está al día':'Sin historial suficiente';
+    const col=r.w==2?'text-red-500':r.w==1?'text-amber-500':r.w==0?'text-emerald-500':'text-slate-400';
+    o.innerHTML=`<div class="space-y-4 fade">
+     <section class="${CARD} p-5 text-center"><div class="text-sm text-slate-500">${esc((m.marca||'')+' '+(m.modelo||''))} · <b>${esc(m.placa)}</b> · ${kmf(k)}</div>
+       <div class="text-5xl my-2">${r.w==2?'🔴':r.w==1?'🟡':r.w==0?'🟢':'❔'}</div><h2 class="text-xl font-extrabold ${col}">${tit}</h2>${bar(r.w,r.pc)}</section>
+     <section class="${CARD} p-4"><h3 class="font-bold mb-1">Estado por componente</h3>${r.ev.map(e=>{
+       const d2=e.lvl<0?'Sin registro: consulta en el taller.':e.rest<=0?'Vencido hace '+kmf(-e.rest):'Faltan '+kmf(e.rest)+' (a los '+kmf(e.nx)+')';
+       return`<div class="flex gap-3 py-3 border-b last:border-0 border-slate-100 dark:border-slate-800"><div class="text-2xl">${e.c.i}</div><div class="flex-1"><div class="flex justify-between gap-2"><b class="text-sm">${e.c.n}</b>${pill(e.lvl)}</div><div class="text-xs text-slate-500">${d2}</div>${bar(e.lvl,e.pct)}</div></div>`}).join('')}</section>
+     <section class="${CARD} p-4"><h3 class="font-bold">🧮 Calculadora de uso diario</h3><label class="text-xs text-slate-500">¿Cuántos km recorres al día?</label>
+       <input id="k-d" type="number" inputmode="numeric" min="1" value="30" oninput="calc()" class="${INP} mt-1"><div id="k-calc" class="mt-2"></div></section>
+     <section class="${CARD} p-4"><h3 class="font-bold">🛠️ Seguimiento de reparación</h3>${m.fase>=0?`<div class="text-xs text-slate-500">Actualizado: ${fmtF(m.fasef)}</div>
+       <div class="flex mt-4">${FASES.map((n,i)=>`<div class="flex-1 text-center relative text-[10px] ${i<=m.fase?'':'text-slate-400'}"><div class="mx-auto w-10 h-10 rounded-full grid place-items-center text-lg relative z-10 ${i<m.fase?'bg-brand-100 dark:bg-brand-700/30 ring-2 ring-brand-500':i==m.fase?'bg-brand-500 pulse-dot':'bg-slate-200 dark:bg-slate-800 grayscale'}">${FI[i]}</div>${i<FASES.length-1?`<div class="absolute top-5 left-1/2 w-full h-0.5 ${i<m.fase?'bg-brand-500':'bg-slate-200 dark:bg-slate-800'}"></div>`:''}<div class="mt-1.5 leading-tight">${n}</div></div>`).join('')}</div>`:'<div class="text-sm text-slate-500">No hay una reparación en curso para tu moto.</div>'}</section></div>`;
+    calc();
+    clearInterval(_poll);_poll=setInterval(()=>{if(C&&!document.hidden&&!$('cliente').hidden)consultar(true)},30000); /* refresca la fase cada 30 s */
+  }catch(e){o.innerHTML='<div class="'+CARD+' p-4 text-red-500 text-sm">No se pudo consultar. Revisa tu conexión e inténtalo de nuevo.</div>'}
+}
+function calc(){
+  if(!C||!$('k-d'))return;const d=+$('k-d').value;
+  const f=e=>{if(e.lvl<0)return{t:'Sin registro',f:null};if(e.rest<=0)return{t:'¡Ya te toca! Vencido',f:hoy()};if(!d||d<1)return{t:'—',f:null};const n=Math.ceil(e.rest/d),fe=addDays(n);return{t:'≈ '+fmtF(fe)+' (en '+n+' días)',f:fe}};
+  const a=f(C.r.ev[0]),g=f(C.r.ev[4]);C.fecha=a.f||g.f||hoy();
+  $('k-calc').innerHTML=`<div class="flex gap-3 py-2"><div class="text-2xl">🛢️</div><div><div class="text-xs text-slate-500">Próximo cambio de aceite</div><b>${a.t}</b></div></div><div class="flex gap-3 py-2"><div class="text-2xl">🔧</div><div><div class="text-xs text-slate-500">Próximo servicio general</div><b>${g.t}</b></div></div>`;
+  if(!citaEdit)$('b-f').value=C.fecha;
+}
+async function agendar(){
+  const p=norm($('k-pla').value),k=$('k-km').value;
+  if(!p){toast('Ingresa tu placa arriba','warn');$('k-pla').focus();return}
+  const nom=val('b-nom')||'Cliente',tel=val('b-tel'),s0=$('b-srv').value,srv=s0+(s0==='Cambio de aceite'?' ('+$('b-oil').value+')':'');
+  const sint=[...document.querySelectorAll('#b-chk input:checked')].map(x=>x.value);if(val('b-det'))sint.push(val('b-det'));
+  let diag='Sin consulta previa (el cliente no usó el semáforo)';
+  if(C&&C.m.placa===p){const pe=C.r.ev.filter(e=>e.lvl>0).sort((a,b)=>b.lvl-a.lvl);diag=pe.length?pe.map(e=>e.c.n+(e.lvl==2?' vencido'+(e.rest<0?' por '+kmf(-e.rest):''):' próximo (faltan '+kmf(e.rest)+')')).join('; '):'Todo al día'}
+  const fe=$('b-f').value?fmtF($('b-f').value):'A coordinar';
+  const txt='🛠️ *NUEVA SOLICITUD DE CITA - TALLER DE MOTOS*\n──────────────────────────────\n👤 *Cliente:* '+nom+(tel?' ('+tel+')':'')+'\n🏍️ *Placa:* '+p+' | *Km actual:* '+(k||'No indicado')+' km\n⚙️ *Servicio:* '+srv+'\n📝 *Detalles/Fallas:* '+(sint.length?sint.join(', '):'Ninguno indicado')+'\n📅 *Fecha / Turno:* '+fe+' - '+$('b-t').value+'\n──────────────────────────────\n*Diagnóstico web:* '+diag+'\n\nHola, quisiera confirmar la recepción de esta orden para llevar mi moto.';
+  const w=window.open('about:blank','_blank'); /* se abre antes del await para evitar el bloqueo de pop-ups */
+  const b=$('b-btn');b.disabled=true;
+  try{
+    await run(sb.from('citas').insert({placa:p,cliente:nom,tel,km:k?+k:null,servicio:srv,detalles:sint.join(', '),fecha_pref:$('b-f').value||null,turno:$('b-t').value,diagnostico:diag}));
+    toast('Cita registrada ✓');
+  }catch(e){toast('No se pudo guardar la cita; se enviará solo por WhatsApp','warn')}
+  b.disabled=false;const url='https://wa.me/'+TALLER_WA+'?text='+encodeURIComponent(txt);
+  if(w)w.location.href=url;else location.href=url;
+}
+
+/* ===================== AUTENTICACIÓN Y RUTAS ===================== */
+let SESS=null,chan=null,loadedOnce=false;
+const isAdmin=()=>SESS?.user?.app_metadata?.role==='admin';
+async function login(){
+  const e=$('l-err');e.hidden=true;
+  const{error}=await sb.auth.signInWithPassword({email:val('l-e'),password:$('l-p').value});
+  if(error){e.textContent='Credenciales inválidas';e.hidden=false;return}
+  $('l-p').value='';
+}
+async function logout(){await sb.auth.signOut();location.hash='cliente';toast('Sesión cerrada')}
+sb.auth.onAuthStateChange((ev,s)=>{SESS=s;setTimeout(route,0)});
+function route(){
+  const t=location.hash==='#taller';
+  if(t&&SESS&&!isAdmin()){toast('Tu usuario no tiene rol de administrador','err');sb.auth.signOut();return}
+  if(t&&!isAdmin()){$('login').hidden=false;$('cliente').hidden=false;$('taller').hidden=true;$('bottom').hidden=true;return}
+  $('login').hidden=true;$('cliente').hidden=t;$('taller').hidden=!t;$('bottom').hidden=!t;
+  $('btn-logout').hidden=!isAdmin();
+  $('lnk-cliente').className='px-3 py-1.5 rounded-lg text-sm font-semibold '+(!t?'bg-brand-50 text-brand-600 dark:bg-brand-700/20':'');
+  $('lnk-taller').className='px-3 py-1.5 rounded-lg text-sm font-semibold '+(t?'bg-brand-50 text-brand-600 dark:bg-brand-700/20':'');
+  if(t){if(!loadedOnce){loadedOnce=true;buildNav();go(TAB);loadAll();subscribe()}}
+  else if(chan){sb.removeChannel(chan);chan=null;loadedOnce=false}
+  window.scrollTo(0,0);
+}
+window.addEventListener('hashchange',route);
+
+/* ===================== DATOS DEL TALLER ===================== */
+let S={motos:[],servicios:[],repuestos:[],citas:[],cfg:{...CFG_DEF}},TAB='dashboard';
+const CACHE='mototech_cache_v1';
+async function loadAll(){
+  if(!$('view').innerHTML)$('view').innerHTML=skel(4);
+  try{
+    const[m,s,r,c,cf]=await Promise.all([
+      run(sb.from('motos').select('*').order('placa')),
+      run(sb.from('servicios').select('*').order('fecha',{ascending:false}).order('id',{ascending:false})),
+      run(sb.from('repuestos').select('*').order('nombre')),
+      run(sb.from('citas').select('*').order('created_at',{ascending:false})),
+      run(sb.from('config').select('data').eq('id',1).maybeSingle())]);
+    S={motos:m,servicios:s,repuestos:r,citas:c,cfg:{...CFG_DEF,...(cf?.data||{})}};
+    try{localStorage.setItem(CACHE,JSON.stringify(S))}catch(e){}
+    $('offline').hidden=true;
+  }catch(e){
+    try{const c=JSON.parse(localStorage.getItem(CACHE)||'null');if(c)S=c}catch(_){}
+    $('offline').hidden=false;
+  }
+  render();
+}
+let _t;function subscribe(){
+  chan=sb.channel('rt-taller').on('postgres_changes',{event:'*',schema:'public'},()=>{clearTimeout(_t);_t=setTimeout(loadAll,700)}).subscribe();
+}
+const svOf=p=>S.servicios.filter(s=>s.placa===p);
+const costoP=s=>(s.repuestos_usados||[]).reduce((a,r)=>a+num(r.costo)*num(r.cantidad),0);
+const alertas=()=>S.motos.map(m=>({m,r:evalAll(svOf(m.placa),m.km)})).filter(x=>x.r.w>0).sort((a,b)=>b.r.w-a.r.w);
+const lowStock=()=>S.repuestos.filter(r=>+r.stock<=+r.min);
+const citasPend=()=>S.citas.filter(c=>c.estado==='pendiente');
+
+/* ===================== NAVEGACIÓN TALLER ===================== */
+const NAV=[['dashboard','fa-gauge','Inicio'],['motos','fa-motorcycle','Motos'],['servicios','fa-screwdriver-wrench','Órdenes'],['citas','fa-calendar-check','Citas'],['inventario','fa-boxes-stacked','Stock'],['finanzas','fa-coins','Caja'],['ajustes','fa-gear','Ajustes']];
+function buildNav(){
+  $('side').innerHTML=NAV.map(([id,ic,n])=>`<button data-t="${id}" onclick="go('${id}')" class="nv w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-left"><i class="fa-solid ${ic} w-5 text-center"></i>${n}${id==='citas'?'<span id="bd-c" class="ml-auto bg-brand-500 text-white text-[10px] rounded-full px-1.5" hidden></span>':''}</button>`).join('');
+  $('bottom').innerHTML=NAV.map(([id,ic,n])=>`<button data-t="${id}" onclick="go('${id}')" class="nv flex-1 py-2 text-[10px] font-semibold"><i class="fa-solid ${ic} block text-base mb-0.5"></i>${n}</button>`).join('');
+}
+function go(t){TAB=t;render();window.scrollTo(0,0)}
+function render(){
+  if($('taller').hidden)return;
+  document.querySelectorAll('.nv').forEach(b=>{const on=b.dataset.t===TAB;b.classList.toggle('bg-brand-50',on);b.classList.toggle('text-brand-600',on);b.classList.toggle('dark:bg-brand-700/20',on)});
+  const n=citasPend().length,b=$('bd-c');if(b){b.hidden=!n;b.textContent=n}
+  $('view').innerHTML='<div class="fade">'+V[TAB]()+'</div>';
+  if(TAB==='motos')fillMotos();if(TAB==='inventario')fillInv();
+}
+const kpi=(l,v,s,ic,c)=>`<div class="${CARD} p-4"><div class="flex justify-between text-xs text-slate-500"><span>${l}</span><i class="fa-solid ${ic} ${c||'text-brand-500'}"></i></div><div class="text-2xl font-extrabold mt-1">${v}</div><div class="text-xs text-slate-500">${s||''}</div></div>`;
+
+/* ===================== VISTAS ===================== */
+const V={
+dashboard(){
+  const mes=hoy().slice(0,7),ms=S.servicios.filter(s=>(s.fecha||'').startsWith(mes));let ing=0,gan=0;ms.forEach(s=>{ing+=num(s.total);gan+=num(s.total)-costoP(s)});
+  const al=alertas(),ls=lowStock();
+  return`<h1 class="text-xl font-extrabold mb-3">Dashboard</h1><div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+   ${kpi('Ingresos del mes',money(ing),'Ganancia neta: '+money(gan),'fa-sack-dollar','text-emerald-500')}${kpi('Servicios del mes',ms.length,'Total histórico: '+S.servicios.length,'fa-wrench')}
+   ${kpi('Motos registradas',S.motos.length,'En reparación: '+S.motos.filter(m=>m.fase>=0&&m.fase<3).length,'fa-motorcycle')}${kpi('Citas web pendientes',citasPend().length,'Por atender','fa-calendar-check','text-amber-500')}</div>
+  <div class="grid lg:grid-cols-3 gap-3 mt-3">
+   <section class="${CARD} p-4"><h3 class="font-bold mb-2">⚠️ Alertas (${al.length})</h3>${al.slice(0,5).map(x=>`<div class="flex justify-between items-center py-2 border-b border-slate-100 dark:border-slate-800 text-sm"><div><b>${esc(x.m.placa)}</b> <span class="text-slate-500">${esc(x.m.cliente)}</span></div>${pill(x.r.w)}</div>`).join('')||'<p class="text-sm text-slate-500">Sin pendientes ✅</p>'}</section>
+   <section class="${CARD} p-4"><h3 class="font-bold mb-2">📦 Stock bajo (${ls.length})</h3>${ls.slice(0,5).map(r=>`<div class="flex justify-between py-2 border-b border-slate-100 dark:border-slate-800 text-sm"><span>${esc(r.nombre)}</span><b class="text-red-500">${r.stock}</b></div>`).join('')||'<p class="text-sm text-slate-500">Todo abastecido ✅</p>'}</section>
+   <section class="${CARD} p-4"><h3 class="font-bold mb-2">🧾 Últimas órdenes</h3>${S.servicios.slice(0,5).map(s=>`<div class="flex justify-between py-2 border-b border-slate-100 dark:border-slate-800 text-sm cursor-pointer" onclick="recibo(${s.id})"><span><b>${esc(s.placa)}</b> · ${esc(s.tipo)}</span><b>${money(s.total)}</b></div>`).join('')||'<p class="text-sm text-slate-500">Aún no hay órdenes.</p>'}</section></div>`},
+
+motos(){return`<div class="flex gap-2 mb-4"><input id="q" oninput="fillMotos()" placeholder="🔎 Placa o cliente…" class="${INP}"><button onclick="motoModal()" class="${BTN} whitespace-nowrap"><i class="fa-solid fa-plus"></i> Moto</button></div><div id="lista" class="grid md:grid-cols-2 gap-3"></div>`},
+
+servicios(){return`<div class="flex justify-between items-center mb-4"><h1 class="text-xl font-extrabold">Órdenes de servicio</h1><button onclick="srvModal()" class="${BTN}"><i class="fa-solid fa-plus"></i> Nueva orden</button></div>
+  <div class="space-y-2">${S.servicios.map(s=>`<div class="${CARD} p-3 flex flex-wrap items-center gap-2 justify-between"><div class="min-w-0"><b>${esc(s.placa)}</b> · ${esc(s.tipo)} <span class="text-xs text-slate-500">${fmtF(s.fecha)} · ${kmf(s.km)} · ${esc(s.estado)}</span><div class="text-xs text-slate-500 truncate">${(s.repuestos_usados||[]).map(r=>esc(r.nombre)+' ×'+r.cantidad).join(', ')}</div></div>
+   <div class="flex items-center gap-1.5"><b class="mr-1">${money(s.total)}</b><button class="${BTN2}" onclick="recibo(${s.id})" title="Recibo"><i class="fa-solid fa-receipt"></i></button><button class="${BTN2}" onclick="srvModal(${s.id})"><i class="fa-solid fa-pen"></i></button><button class="${BTN2} text-red-500" onclick="delSrv(${s.id})"><i class="fa-solid fa-trash"></i></button></div></div>`).join('')||'<p class="text-slate-500">Sin órdenes todavía.</p>'}</div>`},
+
+citas(){return`<h1 class="text-xl font-extrabold mb-3">Citas web</h1><div class="space-y-3">${S.citas.map(c=>{
+  const col={pendiente:2,aceptada:0,convertida:0,rechazada:-1}[c.estado];
+  return`<div class="${CARD} p-4"><div class="flex justify-between gap-2"><div><b class="tracking-wider">${esc(c.placa)}</b> · ${esc(c.cliente||'')} <span class="text-xs text-slate-500">${esc(c.tel||'')}</span></div><span class="text-[11px] font-bold rounded-full px-2.5 py-0.5 h-fit ${PILL[col]}">${esc(c.estado)}</span></div>
+   <div class="text-sm mt-1">⚙️ ${esc(c.servicio)} · 📅 ${fmtF(c.fecha_pref)||'A coordinar'} (${esc(c.turno||'')}) · ${c.km?kmf(c.km):''}</div>
+   <div class="text-xs text-slate-500 mt-1">${esc(c.detalles||'')}</div><div class="text-xs text-slate-500">Diagnóstico web: ${esc(c.diagnostico||'')}</div>
+   <div class="flex flex-wrap gap-2 mt-3">${c.estado==='pendiente'?`<button class="${BTN2} text-emerald-600" onclick="citaAceptar(${c.id})"><i class="fa-brands fa-whatsapp"></i> Aceptar</button><button class="${BTN2}" onclick="citaOT(${c.id})"><i class="fa-solid fa-screwdriver-wrench"></i> Convertir en orden</button><button class="${BTN2} text-red-500" onclick="citaEst(${c.id},'rechazada')">Rechazar</button>`:c.estado==='aceptada'?`<button class="${BTN2}" onclick="citaOT(${c.id})"><i class="fa-solid fa-screwdriver-wrench"></i> Convertir en orden</button>`:''}<button class="${BTN2} text-red-500" onclick="citaDel(${c.id})"><i class="fa-solid fa-trash"></i></button></div></div>`}).join('')||'<p class="text-slate-500">No hay citas agendadas desde la web.</p>'}</div>`},
+
+inventario(){return`<div class="flex flex-wrap gap-2 items-center mb-4"><h1 class="text-xl font-extrabold mr-auto">Inventario</h1>
+  <button class="${BTN2}" onclick="syncGS()"><i class="fa-solid fa-rotate text-emerald-500"></i> Sincronizar Google Sheets</button>
+  <button class="${BTN2}" onclick="$('xl').click()"><i class="fa-solid fa-file-excel text-emerald-500"></i> Subir Excel/CSV</button><input id="xl" type="file" accept=".xlsx,.xls,.csv" hidden onchange="importFile(event)">
+  <button class="${BTN}" onclick="repModal()"><i class="fa-solid fa-plus"></i> Repuesto</button></div>
+  <input id="qi" oninput="fillInv()" placeholder="🔎 Código, nombre o categoría…" class="${INP} mb-3"><div id="inv" class="space-y-2"></div>`},
+
+finanzas(){
+  const mm={};S.servicios.forEach(s=>{const k=(s.fecha||'').slice(0,7);if(!k)return;const o=mm[k]??={ing:0,rep:0,n:0};o.ing+=num(s.total);o.rep+=costoP(s);o.n++});
+  const ks=Object.keys(mm).sort().reverse().slice(0,12),mx=Math.max(1,...ks.map(k=>mm[k].ing));
+  const T=ks.reduce((a,k)=>(a.i+=mm[k].ing,a.g+=mm[k].ing-mm[k].rep,a),{i:0,g:0});
+  return`<h1 class="text-xl font-extrabold mb-3">Caja y finanzas</h1><div class="grid grid-cols-2 gap-3 mb-3">${kpi('Ingresos (12 meses)',money(T.i),'','fa-sack-dollar','text-emerald-500')}${kpi('Ganancia neta',money(T.g),'Ingresos − costo de repuestos','fa-chart-line')}</div>
+  <div class="${CARD} p-4 space-y-3">${ks.map(k=>{const o=mm[k];return`<div><div class="flex justify-between text-sm"><b>${k.split('-').reverse().join('/')}</b><span>${o.n} órdenes · ${money(o.ing)} · <b class="text-emerald-600">${money(o.ing-o.rep)}</b></span></div><div class="h-2 rounded-full bg-slate-200 dark:bg-slate-800 mt-1"><i class="block h-full rounded-full bg-brand-500" style="width:${o.ing/mx*100}%"></i></div></div>`}).join('')||'<p class="text-slate-500 text-sm">Sin datos todavía.</p>'}</div>`},
+
+ajustes(){const c=S.cfg,f=(id,l,v)=>`<div><label class="text-xs text-slate-500">${l}</label><input id="${id}" value="${esc(v)}" class="${INP}"></div>`;
+  return`<h1 class="text-xl font-extrabold mb-3">Ajustes</h1><div class="${CARD} p-4 grid sm:grid-cols-2 gap-3">${f('c-nombre','Nombre del taller',c.nombre)}${f('c-ruc','RUC',c.ruc)}${f('c-tel','Teléfono',c.tel)}${f('c-dir','Dirección',c.dir)}
+  <div class="sm:col-span-2">${f('c-pie','Pie del recibo',c.pie)}</div><div class="sm:col-span-2">${f('c-gs','URL de Google Sheets (publicada como web / CSV)',c.gsheet)}</div>
+  <button class="${BTN} sm:col-span-2" onclick="saveCfg()">Guardar ajustes</button><button class="${BTN2} sm:col-span-2" onclick="backup()"><i class="fa-solid fa-download"></i> Descargar respaldo JSON</button></div>`}
+};
+
+/* ---------- MOTOS ---------- */
+function fillMotos(){
+  const q=($('q')?.value||'').toLowerCase().replace(/\s+/g,'');
+  const l=S.motos.filter(m=>!q||m.placa.toLowerCase().includes(q)||(m.cliente||'').toLowerCase().replace(/\s+/g,'').includes(q));
+  $('lista').innerHTML=l.map(m=>{const r=evalAll(svOf(m.placa),m.km);return`<div class="${CARD} p-4"><div class="flex justify-between"><div><div class="font-extrabold text-lg tracking-wider">${esc(m.placa)}</div><div class="text-sm">${esc((m.marca||'')+' '+(m.modelo||''))}</div></div>${pill(r.w)}</div>
+   <div class="text-xs text-slate-500 mt-1">👤 ${esc(m.cliente)} · ${esc(m.tel||'')} · ${kmf(m.km)}</div>${bar(r.w,r.pc)}
+   <label class="text-xs text-slate-500 block mt-3">Fase de reparación</label><select onchange="setFase('${m.placa}',this.value)" class="${INP}"><option value="-1" ${m.fase<0?'selected':''}>Sin orden activa</option>${FASES.map((f,i)=>`<option value="${i}" ${m.fase===i?'selected':''}>${i+1}. ${f}</option>`).join('')}</select>
+   <div class="flex flex-wrap gap-2 mt-3"><button class="${BTN2}" onclick="srvModal(null,{placa:'${m.placa}',km:${+m.km||0}})">+ Orden</button><button class="${BTN2}" onclick="motoModal('${m.placa}')">Editar</button>${m.fase>=0?`<button class="${BTN2} text-emerald-600" onclick="avisoFase('${m.placa}')"><i class="fa-brands fa-whatsapp"></i> Estado</button>`:''}${r.w>0?`<button class="${BTN2} text-amber-600" onclick="recordar('${m.placa}')"><i class="fa-brands fa-whatsapp"></i> Recordar</button>`:''}<button class="${BTN2} text-red-500" onclick="delMoto('${m.placa}')"><i class="fa-solid fa-trash"></i></button></div></div>`}).join('')||'<p class="text-slate-500">Sin resultados.</p>';
+}
+function motoModal(p){const m=S.motos.find(x=>x.placa===p)||{};const f=(id,l,v,t='text')=>`<div><label class="text-xs text-slate-500">${l}</label><input id="${id}" type="${t}" value="${esc(v??'')}" class="${INP}"></div>`;
+  modal(`<h3 class="font-bold text-lg mb-3">${p?'Editar':'Nueva'} moto</h3><div class="grid sm:grid-cols-2 gap-3">${f('m-pla','Placa',m.placa)}${f('m-cli','Cliente',m.cliente)}${f('m-tel','Teléfono / WhatsApp',m.tel,'tel')}${f('m-mar','Marca',m.marca)}${f('m-mod','Modelo',m.modelo)}${f('m-km','Kilometraje',m.km,'number')}<div class="sm:col-span-2">${f('m-not','Notas',m.notas)}</div></div>
+  <div class="flex gap-2 mt-4"><button class="${BTN} flex-1" onclick="saveMoto(${p?1:0})">Guardar</button><button class="${BTN2}" onclick="closeM()">Cancelar</button></div>`);
+  if(p)$('m-pla').readOnly=true}
+async function saveMoto(edit){
+  const placa=norm(val('m-pla'));if(!placa||!val('m-cli')){toast('Falta placa o cliente','warn');return}
+  try{await run(sb.from('motos').upsert({placa,cliente:val('m-cli'),tel:val('m-tel'),marca:val('m-mar'),modelo:val('m-mod'),km:+val('m-km')||0,notas:val('m-not')},{onConflict:'placa'}));closeM();toast('Moto guardada ✓');loadAll()}catch(e){}}
+async function delMoto(p){if(!confirm('¿Eliminar '+p+' y todo su historial?'))return;try{await run(sb.from('motos').delete().eq('placa',p));toast('Moto eliminada');loadAll()}catch(e){}}
+async function setFase(p,v){try{await run(sb.from('motos').update({fase:+v,fasef:hoy()}).eq('placa',p));toast(+v>=0?'Estado: '+FASES[+v]:'Sin orden activa');loadAll()}catch(e){}}
+function avisoFase(p){const m=S.motos.find(x=>x.placa===p);waOpen(m.tel,'Hola '+m.cliente+', te escribe '+S.cfg.nombre+'. Estado de tu moto '+(m.modelo||'')+' (placa '+m.placa+'): '+FASES[m.fase].toUpperCase()+(m.fase===3?'. ¡Ya puedes pasar a recogerla!':'.'))}
+function recordar(p){const m=S.motos.find(x=>x.placa===p),r=evalAll(svOf(p),m.km),e=r.ev.filter(x=>x.lvl>0).sort((a,b)=>b.lvl-a.lvl)[0];
+  waOpen(m.tel||TALLER_WA,'👋 Hola '+m.cliente+', te saludamos de '+S.cfg.nombre+'. Tu moto '+m.placa+' registra '+kmf(m.km)+' y su '+e.c.n.toLowerCase()+' está '+(e.lvl==2?'VENCIDO':'PRÓXIMO')+'. ¿Te reservamos un cupo esta semana?')}
+
+/* ---------- ÓRDENES DE SERVICIO ---------- */
+const lineHtml=(r={})=>`<div class="ln grid grid-cols-12 gap-1.5 items-center"><select class="rid ${INP} col-span-12 sm:col-span-4" onchange="pickRep(this)"><option value="">Personalizado</option>${S.repuestos.map(x=>`<option value="${x.id}" ${x.id==r.repuestoId?'selected':''}>${esc(x.nombre)} (${x.stock})</option>`).join('')}</select><input class="nm ${INP} col-span-12 sm:col-span-3" placeholder="Nombre" value="${esc(r.nombre||'')}"><input type="number" min="1" class="ct ${INP} col-span-3 sm:col-span-1" value="${r.cantidad||1}" oninput="calcTot()"><input type="number" class="pv ${INP} col-span-4 sm:col-span-2" placeholder="Venta" value="${r.precioVenta??''}" oninput="calcTot()"><input type="number" class="cs ${INP} col-span-4 sm:col-span-1" placeholder="Costo" value="${r.costo??''}"><button type="button" onclick="this.parentNode.remove();calcTot()" class="col-span-1 text-red-500"><i class="fa-solid fa-xmark"></i></button></div>`;
+function pickRep(sel){const r=S.repuestos.find(x=>x.id==sel.value),l=sel.closest('.ln');if(r){l.querySelector('.nm').value=r.nombre;l.querySelector('.pv').value=r.venta;l.querySelector('.cs').value=r.costo}calcTot()}
+function addLine(){$('lines').insertAdjacentHTML('beforeend',lineHtml())}
+function readLines(){return[...document.querySelectorAll('.ln')].map(l=>({repuestoId:+l.querySelector('.rid').value||null,nombre:l.querySelector('.nm').value.trim()||'Repuesto',cantidad:+l.querySelector('.ct').value||1,precioVenta:+l.querySelector('.pv').value||0,costo:+l.querySelector('.cs').value||0})).filter(r=>r.repuestoId||r.nombre!=='Repuesto'||r.precioVenta)}
+function calcTot(){const t=Math.max(0,(+$('s-mo').value||0)+readLines().reduce((a,r)=>a+r.precioVenta*r.cantidad,0)-(+$('s-dc').value||0));$('s-tot').textContent=money(t);return t}
+function srvModal(id,pre){
+  const s=id?S.servicios.find(x=>x.id==id):(pre||{}),f=(i,l,v,t='text',x='')=>`<div><label class="text-xs text-slate-500">${l}</label><input id="${i}" type="${t}" value="${esc(v??'')}" ${x} class="${INP}"></div>`;
+  modal(`<h3 class="font-bold text-lg mb-3">${id?'Editar':'Nueva'} orden de trabajo</h3><datalist id="dl">${S.motos.map(m=>`<option value="${m.placa}">${esc(m.cliente)}</option>`).join('')}</datalist>
+  <div class="grid sm:grid-cols-3 gap-3">${f('s-placa','Placa',s.placa,'text','list="dl" oninput="autoKm()"')}${f('s-fecha','Fecha',s.fecha||hoy(),'date')}${f('s-km','Km del servicio',s.km,'number')}
+   <div><label class="text-xs text-slate-500">Tipo de trabajo</label><select id="s-tipo" class="${INP}">${TIPOS.map(t=>`<option ${t===s.tipo?'selected':''}>${t}</option>`).join('')}</select></div>
+   <div><label class="text-xs text-slate-500">Estado</label><select id="s-estado" class="${INP}">${['Pendiente','En proceso','Completado'].map(t=>`<option ${t===(s.estado||'Completado')?'selected':''}>${t}</option>`).join('')}</select></div>
+   ${f('s-obs','Observaciones',s.obs)}${f('s-pkm','Próximo aceite (km)',s.pkm,'number')}${f('s-pfe','Próximo aceite (fecha)',s.pfe,'date')}</div>
+  <div class="mt-4 flex justify-between items-center"><b class="text-sm">Repuestos (descuentan stock)</b><button class="${BTN2}" onclick="addLine()">+ Línea</button></div><div id="lines" class="space-y-1.5 mt-2">${(s.repuestos_usados||[]).map(lineHtml).join('')}</div>
+  <div class="grid grid-cols-2 gap-3 mt-3">${f('s-mo','Mano de obra ('+MONEDA+')',s.mano_obra,'number','oninput="calcTot()"')}${f('s-dc','Descuento ('+MONEDA+')',s.descuento,'number','oninput="calcTot()"')}</div>
+  <div class="flex justify-between items-center mt-4"><div class="text-xl font-extrabold">Total: <span id="s-tot">${money(s.total)}</span></div><div class="flex gap-2"><button class="${BTN2}" onclick="closeM()">Cancelar</button><button class="${BTN}" onclick="saveSrv(${id||0},${s.cita_id||0})">Guardar y ver recibo</button></div></div>`);calcTot()}
+function autoKm(){const m=S.motos.find(x=>x.placa===norm(val('s-placa')));if(m&&!$('s-km').value)$('s-km').value=m.km}
+async function saveSrv(id,citaId){
+  const placa=norm(val('s-placa'));if(!placa){toast('Ingresa la placa','warn');return}
+  const lines=readLines(),km=+val('s-km')||0,tipo=$('s-tipo').value,fecha=val('s-fecha')||hoy(),total=calcTot();
+  let pkm=val('s-pkm')?+val('s-pkm'):null,pfe=val('s-pfe')||null;
+  if(tipo==='Cambio de aceite'){if(pkm===null&&km)pkm=km+3000;if(!pfe){const d=new Date(fecha+'T00:00:00');d.setMonth(d.getMonth()+3);pfe=dstr(d)}}
+  const old=id?S.servicios.find(x=>x.id==id):null,m=S.motos.find(x=>x.placa===placa);
+  try{
+    if(!m)await run(sb.from('motos').insert({placa,cliente:'Cliente General',km,fase:0,fasef:hoy()}));
+    else{const u={};if(km>m.km)u.km=km;if(m.fase<0){u.fase=0;u.fasef=hoy()}if(Object.keys(u).length)await run(sb.from('motos').update(u).eq('placa',placa))}
+    if(old)for(const r of old.repuestos_usados||[])if(r.repuestoId)await run(sb.rpc('ajustar_stock',{p_id:r.repuestoId,p_delta:r.cantidad})); /* devuelve stock previo */
+    for(const r of lines)if(r.repuestoId)await run(sb.rpc('ajustar_stock',{p_id:r.repuestoId,p_delta:-r.cantidad})); /* descuenta stock */
+    const row={placa,fecha,km,tipo,estado:$('s-estado').value,obs:val('s-obs'),pkm,pfe,mano_obra:+val('s-mo')||0,descuento:+val('s-dc')||0,repuestos_usados:lines,total};
+    const q=id?sb.from('servicios').update(row).eq('id',id):sb.from('servicios').insert(row);
+    const saved=await run(q.select().single());
+    if(citaId)await run(sb.from('citas').update({estado:'convertida'}).eq('id',citaId));
+    toast('Orden guardada ✓');await loadAll();recibo(saved.id);
+  }catch(e){}}
+async function delSrv(id){if(!confirm('¿Borrar esta orden? Se devolverá el stock de los repuestos.'))return;const s=S.servicios.find(x=>x.id==id);
+  try{for(const r of s.repuestos_usados||[])if(r.repuestoId)await run(sb.rpc('ajustar_stock',{p_id:r.repuestoId,p_delta:r.cantidad}));await run(sb.from('servicios').delete().eq('id',id));toast('Orden eliminada');loadAll()}catch(e){}}
+
+/* ---------- RECIBO ---------- */
+function recibo(id){
+  const s=S.servicios.find(x=>x.id==id);if(!s)return;const m=S.motos.find(x=>x.placa===s.placa)||{},c=S.cfg,rp=s.repuestos_usados||[];
+  modal(`<div id="print-area" class="text-sm"><div class="text-center border-b border-dashed border-slate-400 pb-2 mb-2"><div class="font-extrabold text-lg">${esc(c.nombre)}</div><div>${esc(c.ruc)} · ${esc(c.tel)}</div><div>${esc(c.dir)}</div></div>
+   <div class="flex justify-between"><b>Orden #${s.id}</b><span>${fmtF(s.fecha)}</span></div><div>Cliente: <b>${esc(m.cliente||'')}</b></div><div>Moto: <b>${esc(s.placa)}</b> ${esc((m.marca||'')+' '+(m.modelo||''))} · ${kmf(s.km)}</div><div>Trabajo: ${esc(s.tipo)}</div>${s.obs?`<div>Obs.: ${esc(s.obs)}</div>`:''}
+   <table class="w-full mt-2"><thead><tr class="border-b border-slate-400 text-left"><th>Detalle</th><th class="text-center">Cant.</th><th class="text-right">P. Unit.</th><th class="text-right">Subtotal</th></tr></thead><tbody>${rp.map(r=>`<tr><td>${esc(r.nombre)}</td><td class="text-center">${r.cantidad}</td><td class="text-right">${money(r.precioVenta)}</td><td class="text-right">${money(r.precioVenta*r.cantidad)}</td></tr>`).join('')}<tr><td colspan="3">Mano de obra</td><td class="text-right">${money(s.mano_obra)}</td></tr>${+s.descuento?`<tr><td colspan="3">Descuento</td><td class="text-right">-${money(s.descuento)}</td></tr>`:''}</tbody></table>
+   <div class="text-right text-lg font-extrabold border-t border-slate-400 mt-2 pt-1">TOTAL: ${money(s.total)}</div>${s.pkm||s.pfe?`<div class="mt-2">Próximo aceite: ${s.pkm?kmf(s.pkm):''} ${s.pfe?'/ '+fmtF(s.pfe):''}</div>`:''}<div class="text-center mt-3 text-xs">${esc(c.pie)}</div></div>
+   <div class="no-print flex flex-wrap gap-2 mt-4"><button class="${BTN} flex-1" onclick="window.print()"><i class="fa-solid fa-print"></i> Imprimir / PDF</button><button class="${BTN2} text-emerald-600 flex-1" onclick="reciboWA(${s.id})"><i class="fa-brands fa-whatsapp"></i> Enviar</button><button class="${BTN2}" onclick="closeM()">Cerrar</button></div>`)}
+function reciboWA(id){const s=S.servicios.find(x=>x.id==id),m=S.motos.find(x=>x.placa===s.placa)||{};
+  waOpen(m.tel,'🧾 *'+S.cfg.nombre+'*\nOrden #'+s.id+' · '+fmtF(s.fecha)+'\nMoto: '+s.placa+' · '+s.tipo+'\n'+(s.repuestos_usados||[]).map(r=>'• '+r.nombre+' ×'+r.cantidad).join('\n')+'\nMano de obra: '+money(s.mano_obra)+(+s.descuento?'\nDescuento: -'+money(s.descuento):'')+'\n*TOTAL: '+money(s.total)+'*\n'+S.cfg.pie)}
+
+/* ---------- CITAS WEB ---------- */
+async function citaEst(id,estado){try{await run(sb.from('citas').update({estado}).eq('id',id));loadAll()}catch(e){}}
+async function citaAceptar(id){const c=S.citas.find(x=>x.id==id);await citaEst(id,'aceptada');waOpen(c.tel,'Hola '+(c.cliente||'')+', te escribe '+S.cfg.nombre+'. ✅ Confirmamos tu cita para tu moto '+c.placa+' ('+c.servicio+') el '+(fmtF(c.fecha_pref)||'día a coordinar')+' en turno '+(c.turno||'')+'. ¡Te esperamos!')}
+async function citaDel(id){if(!confirm('¿Eliminar esta cita?'))return;try{await run(sb.from('citas').delete().eq('id',id));loadAll()}catch(e){}}
+const MAPT={'Cambio de aceite':'Cambio de aceite','Frenos':'Frenos','Kit de arrastre':'Kit de arrastre y cadena','Transmisión':'Transmisión','Mantenimiento General':'Mantenimiento general'};
+async function citaOT(id){const c=S.citas.find(x=>x.id==id),placa=norm(c.placa);
+  try{if(!S.motos.find(m=>m.placa===placa)){await run(sb.from('motos').insert({placa,cliente:c.cliente||'Cliente Web',tel:c.tel||'',km:c.km||0,fase:0,fasef:hoy()}));await loadAll()}
+    const t=MAPT[(c.servicio||'').split(' (')[0]]||'Otro';
+    srvModal(null,{placa,km:c.km||0,tipo:t,fecha:hoy(),obs:'Cita web: '+(c.detalles||''),cita_id:c.id,estado:'En proceso'})}catch(e){}}
+
+/* ---------- INVENTARIO ---------- */
+function fillInv(){const q=($('qi')?.value||'').toLowerCase();
+  $('inv').innerHTML=S.repuestos.filter(r=>!q||(r.codigo+r.nombre+r.categoria).toLowerCase().includes(q)).map(r=>{const low=+r.stock<=+r.min;return`<div class="${CARD} p-3 flex flex-wrap items-center gap-3 justify-between"><div class="min-w-0"><b>${esc(r.nombre)}</b><div class="text-xs text-slate-500">${esc(r.codigo)} · ${esc(r.categoria)} · costo ${money(r.costo)} · venta <b>${money(r.venta)}</b> · mín ${r.min}</div></div>
+   <div class="flex items-center gap-1.5"><button class="${BTN2}" onclick="stock(${r.id},-1)">−</button><span class="w-12 text-center font-extrabold ${low?'text-red-500':''}">${r.stock}</span><button class="${BTN2}" onclick="stock(${r.id},1)">+</button><button class="${BTN2}" onclick="repModal(${r.id})"><i class="fa-solid fa-pen"></i></button><button class="${BTN2} text-red-500" onclick="delRep(${r.id})"><i class="fa-solid fa-trash"></i></button></div></div>`}).join('')||'<p class="text-slate-500">Sin repuestos. Sincroniza tu hoja o agrega el primero.</p>'}
+async function stock(id,d){try{await run(sb.rpc('ajustar_stock',{p_id:id,p_delta:d}));loadAll()}catch(e){}}
+function repModal(id){const r=S.repuestos.find(x=>x.id==id)||{},f=(i,l,v,t='text')=>`<div><label class="text-xs text-slate-500">${l}</label><input id="${i}" type="${t}" value="${esc(v??'')}" class="${INP}"></div>`;
+  modal(`<h3 class="font-bold text-lg mb-3">${id?'Editar':'Nuevo'} repuesto</h3><div class="grid sm:grid-cols-2 gap-3">${f('r-cod','Código / SKU',r.codigo)}${f('r-nom','Nombre',r.nombre)}${f('r-cat','Categoría',r.categoria||'Varios')}${f('r-stk','Stock',r.stock??0,'number')}${f('r-min','Stock mínimo',r.min??3,'number')}${f('r-cos','Costo ('+MONEDA+')',r.costo,'number')}${f('r-ven','Venta ('+MONEDA+')',r.venta,'number')}</div>
+  <div class="flex gap-2 mt-4"><button class="${BTN} flex-1" onclick="saveRep(${id||0})">Guardar</button><button class="${BTN2}" onclick="closeM()">Cancelar</button></div>`)}
+async function saveRep(id){const codigo=val('r-cod').toUpperCase(),nombre=val('r-nom');if(!codigo||!nombre){toast('Falta código o nombre','warn');return}
+  const row={codigo,nombre,categoria:val('r-cat')||'Varios',stock:+val('r-stk')||0,min:+val('r-min')||0,costo:+val('r-cos')||0,venta:+val('r-ven')||0};
+  try{await run(id?sb.from('repuestos').update(row).eq('id',id):sb.from('repuestos').insert(row));closeM();toast('Repuesto guardado ✓');loadAll()}catch(e){}}
+async function delRep(id){if(!confirm('¿Eliminar este repuesto?'))return;try{await run(sb.from('repuestos').delete().eq('id',id));loadAll()}catch(e){}}
+
+/* Google Sheets (CSV publicado) / Excel local → upsert masivo en Supabase */
+function gsUrl(u){u=(u||'').trim();if(!u)return'';if(u.includes('/pubhtml'))return u.replace('/pubhtml','/pub?output=csv');if(/\/edit/.test(u))return u.replace(/\/edit.*$/,'/pub?output=csv');return u}
+async function syncGS(){const u=gsUrl(S.cfg.gsheet);if(!u){toast('Configura la URL de Google Sheets en Ajustes','warn');return}
+  try{$('spin').hidden=false;const r=await fetch(u,{cache:'no-cache'});if(!r.ok)throw new Error('No se pudo leer la hoja (¿está publicada en la web como CSV?)');
+    const wb=XLSX.read(await r.text(),{type:'string'});await importRows(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''}),'Google Sheets')}
+  catch(e){toast(e.message||'Error al sincronizar','err')}finally{$('spin').hidden=true}}
+function importFile(ev){const f=ev.target.files[0];if(!f)return;const rd=new FileReader();
+  rd.onload=async e=>{try{const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});await importRows(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''}),'Archivo')}catch(x){toast('No se pudo procesar el archivo','err')}};rd.readAsArrayBuffer(f);ev.target.value=''}
+async function importRows(rows,origen){
+  const g=(r,...k)=>{for(const x of k)if(r[x]!==undefined&&r[x]!=='')return r[x];return''},map=new Map();
+  rows.forEach((r,i)=>{const codigo=String(g(r,'Código','Codigo','codigo','SKU','sku')||'ITEM-'+(i+1)).trim().toUpperCase(),nombre=String(g(r,'Descripción','Descripcion','Nombre','nombre','Repuesto')).trim();
+    if(codigo&&nombre)map.set(codigo,{codigo,nombre,categoria:String(g(r,'Categoría','Categoria','categoria')||'Varios').trim(),stock:Math.round(num(g(r,'Stock','stock','Cantidad'))),min:Math.round(num(g(r,'Stock_Minimo','Stock Minimo','Minimo'))||3),costo:num(g(r,'Precio_Costo','Precio Costo','Costo')),venta:num(g(r,'Precio_Venta','Precio Venta','Venta'))})});
+  const arr=[...map.values()];if(!arr.length){toast('No se encontraron filas válidas','warn');return}
+  for(let i=0;i<arr.length;i+=500)await run(sb.from('repuestos').upsert(arr.slice(i,i+500),{onConflict:'codigo'}));
+  toast(origen+': '+arr.length+' repuestos sincronizados ✓');loadAll()}
+
+/* ---------- AJUSTES ---------- */
+async function saveCfg(){const data={nombre:val('c-nombre'),ruc:val('c-ruc'),tel:val('c-tel'),dir:val('c-dir'),pie:val('c-pie'),gsheet:val('c-gs')};
+  try{await run(sb.from('config').upsert({id:1,data}));toast('Ajustes guardados ✓');loadAll()}catch(e){}}
+function backup(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,1)],{type:'application/json'}));a.download='respaldo-taller-'+hoy()+'.json';a.click()}
+
+/* ===================== PWA + ARRANQUE ===================== */
+(function pwa(){try{
+  const ic='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="#ef4444"/><text x="50" y="68" font-size="56" text-anchor="middle">🏍️</text></svg>');
+  const man={name:'MotoTech Pro',short_name:'MotoTech',start_url:location.origin+location.pathname,display:'standalone',background_color:'#0f172a',theme_color:'#ef4444',lang:'es-PE',icons:[{src:ic,sizes:'512x512',type:'image/svg+xml',purpose:'any'}]};
+  const l=document.createElement('link');l.rel='manifest';l.href=URL.createObjectURL(new Blob([JSON.stringify(man)],{type:'application/manifest+json'}));document.head.appendChild(l);
+  if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js').catch(()=>{});
+}catch(e){}})();
+$('b-f').min=hoy();$('b-oil').hidden=false;
+sb.auth.getSession().then(({data})=>{SESS=data.session;route()});
+</script>
+</body>
+</html>
