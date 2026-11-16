@@ -243,6 +243,10 @@ async function login(){
     $('l-p').value = '';
     $('login').hidden = true;
     if(btn) btn.textContent = 'Ingresar';
+    
+    // Forzar la redirección al panel de administración del taller
+    location.hash = 'taller';
+    route();
   } catch(err) {
     if(e){
       e.textContent = 'Error de conexión con Supabase';
