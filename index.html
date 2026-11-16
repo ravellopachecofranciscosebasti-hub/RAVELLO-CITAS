@@ -223,10 +223,33 @@ async function agendar(){
 let SESS=null,chan=null,loadedOnce=false;
 const isAdmin=()=>SESS?.user?.app_metadata?.role==='admin';
 async function login(){
-  const e=$('l-err');e.hidden=true;
-  const{error}=await sb.auth.signInWithPassword({email:val('l-e'),password:$('l-p').value});
-  if(error){e.textContent='Credenciales inválidas';e.hidden=false;return}
-  $('l-p').value='';
+  const e = $('l-err'); 
+  if(e) e.hidden = true;
+  const btn = document.querySelector('#login button');
+  if(btn) btn.textContent = 'Ingresando...';
+  try {
+    const {data, error} = await sb.auth.signInWithPassword({
+      email: val('l-e'), 
+      password: $('l-p').value
+    });
+    if(error){
+      if(e){
+        e.textContent = error.message === 'Invalid login credentials' ? 'Correo o contraseña incorrectos' : error.message;
+        e.hidden = false;
+      }
+      if(btn) btn.textContent = 'Ingresar';
+      return;
+    }
+    $('l-p').value = '';
+    $('login').hidden = true;
+    if(btn) btn.textContent = 'Ingresar';
+  } catch(err) {
+    if(e){
+      e.textContent = 'Error de conexión con Supabase';
+      e.hidden = false;
+    }
+    if(btn) btn.textContent = 'Ingresar';
+  }
 }
 async function logout(){await sb.auth.signOut();location.hash='cliente';toast('Sesión cerrada')}
 sb.auth.onAuthStateChange((ev,s)=>{SESS=s;setTimeout(route,0)});
