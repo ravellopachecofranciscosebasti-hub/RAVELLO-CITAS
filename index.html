@@ -241,10 +241,10 @@ async function login(){
       return;
     }
     $('l-p').value = '';
+    // Ocultar la ventana de login inmediatamente
     $('login').hidden = true;
     if(btn) btn.textContent = 'Ingresar';
     
-    // Forzar la redirección al panel de administración del taller
     location.hash = 'taller';
     route();
   } catch(err) {
