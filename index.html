@@ -521,12 +521,12 @@ async function askAI(){
     const listData = await listRes.json();
     if(!listRes.ok) throw new Error(listData.error ? listData.error.message : 'API Key invalida');
     const valid = (listData.models || []).filter(function(m){
-      return m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent') && m.name.includes('gemini');
+      return m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent') && m.name.includes('gemini') && !m.name.includes('2.5') && !m.name.includes('2.0') && !m.name.includes('1.5');
     });
-    const chosen = valid.find(function(m){ return m.name.includes('flash'); }) || valid[0];
-    if(!chosen) throw new Error('No hay modelos Gemini disponibles para esta API Key');
+    const chosen = valid.find(function(m){ return m.name.includes('3.8-flash') || m.name.includes('flash'); }) || valid[0];
+    const modelPath = chosen ? chosen.name : 'models/gemini-3.8-flash';
 
-    const url = 'https://generativelanguage.googleapis.com/v1beta/' + chosen.name + ':generateContent?key=' + encodeURIComponent(key);
+    const url = 'https://generativelanguage.googleapis.com/v1beta/' + modelPath + ':generateContent?key=' + encodeURIComponent(key);
     const res = await fetch(url, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
