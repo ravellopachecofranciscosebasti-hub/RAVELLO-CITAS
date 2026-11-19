@@ -517,13 +517,24 @@ async function askAI(){
   }).join(' | ');
   const prompt = 'Eres el mecanico jefe y asesor experto del taller de motos "' + S.cfg.nombre + '" en Lima, Peru. Responde de forma directa, practica y estructurada.\nInventario actual disponible en el taller: ' + (stockCtx || 'Sin repuestos cargados') + '.\nConsulta del dueno del taller: ' + q;
   try{
-   const url = '[https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=)' + encodeURIComponent(key);
+    const listRes = await fetch('https://generativelanguage.googleapis.com/v1beta/models?key=' + encodeURIComponent(key));
+    const listData = await listRes.json();
+    if(!listRes.ok) throw new Error(listData.error ? listData.error.message : 'API Key invalida');
+    const valid = (listData.models || []).filter(function(m){
+      return m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent') && m.name.includes('gemini');
+    });
+    const chosen = valid.find(function(m){ return m.name.includes('flash'); }) || valid[0];
+    if(!chosen) throw new Error('No hay modelos Gemini disponibles para esta API Key');
+
+    const url = 'https://generativelanguage.googleapis.com/v1beta/' + chosen.name + ':generateContent?key=' + encodeURIComponent(key);
     const res = await fetch(url, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({contents: [{parts: [{text: prompt}]}]})
     });
-    const data = await res.json();
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch(e) { throw new Error('Error de respuesta del servidor (' + res.status + ')'); }
     if(!res.ok) throw new Error(data.error && data.error.message ? data.error.message : 'Error al consultar Gemini');
     const reply = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0].text) || 'Sin respuesta.';
     out.innerHTML = '<div class="' + CARD + ' p-4 text-sm whitespace-pre-wrap leading-relaxed fade">' + esc(reply) + '</div>';
