@@ -454,7 +454,7 @@ async function saveSrv(id,citaId){
   const old=id?S.servicios.find(x=>x.id==id):null,m=S.motos.find(x=>x.placa===placa);
   try{
     if(!m)await run(sb.from('motos').insert({placa,cliente:'Cliente General',km,fase:0,fasef:hoy()}));
-    else{const u={};if(km>m.km)u.km=km;if(m.fase<0){u.fase=0;u.fasef:hoy()}if(Object.keys(u).length)await run(sb.from('motos').update(u).eq('placa',placa))}
+    else{const u={};if(km>m.km)u.km=km;if(m.fase<0){u.fase=0;u.fasef=hoy()}if(Object.keys(u).length)await run(sb.from('motos').update(u).eq('placa',placa))}
     if(old)for(const r of old.repuestos_usados||[])if(r.repuestoId)await run(sb.rpc('ajustar_stock',{p_id:r.repuestoId,p_delta:r.cantidad}));
     for(const r of lines)if(r.repuestoId)await run(sb.rpc('ajustar_stock',{p_id:r.repuestoId,p_delta:-r.cantidad}));
     const row={placa,fecha,km,tipo,estado:$('s-estado').value,obs:val('s-obs'),pkm,pfe,mano_obra:+val('s-mo')||0,descuento:+val('s-dc')||0,repuestos_usados:lines,total};
