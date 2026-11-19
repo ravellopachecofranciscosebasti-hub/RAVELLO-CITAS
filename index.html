@@ -377,6 +377,7 @@ ia(){
   </div>
   <div id="ai-out" class="mt-3"></div>`;
 }
+};
 /* ---------- MOTOS ---------- */
 function fillMotos(){
   const q=($('q')?.value||'').toLowerCase().replace(/\s+/g,'');
@@ -486,13 +487,14 @@ async function citaOT(id){const c=S.citas.find(x=>x.id==id),placa=norm(c.placa);
     srvModal(null,{placa,km:c.km||0,tipo:t,fecha:hoy(),obs:'Cita web: '+(c.detalles||''),cita_id:c.id,estado:'En proceso'})}catch(e){}}
 
 /* ---------- INVENTARIO ---------- */
-function fillInv(){
-  const raw=$('qi')?.value||'',q=raw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
-  const list=S.repuestos.filter(r=>!q||(r.codigo+' '+r.nombre+' '+r.categoria).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').includes(q));
-  $('inv').innerHTML=(q?`<div class="text-xs text-slate-500 mb-2">Mostrando <b>${list.length}</b> resultados para "${esc(raw)}" · <button onclick="$('qi').value='';fillInv()" class="text-brand-500 underline">Limpiar</button></div>`:'')+
-  (list.map(r=>{const low=+r.stock<=+r.min;return`<div class="${CARD} p-3 flex flex-wrap items-center gap-3 justify-between"><div class="min-w-0"><b>${esc(r.nombre)}</b><div class="text-xs text-slate-500">${esc(r.codigo)} · ${esc(r.categoria)} · costo ${money(r.costo)} · venta <b>${money(r.venta)}</b> · mín ${r.min}</div></div>
-   <div class="flex items-center gap-1.5"><button class="${BTN2}" onclick="stock(${r.id},-1)">−</button><span class="w-12 text-center font-extrabold ${low?'text-red-500':''}">${r.stock}</span><button class="${BTN2}" onclick="stock(${r.id},1)">+</button><button class="${BTN2}" onclick="repModal(${r.id})"><i class="fa-solid fa-pen"></i></button><button class="${BTN2} text-red-500" onclick="delRep(${r.id})"><i class="fa-solid fa-trash"></i></button></div></div>`}).join('')||'<p class="text-slate-500">No se encontraron repuestos con ese criterio.</p>');
-}
+async function stock(id,d){try{await run(sb.rpc('ajustar_stock',{p_id:id,p_delta:d}));loadAll()}catch(e){}}
+function repModal(id){const r=S.repuestos.find(x=>x.id==id)||{},f=(i,l,v,t='text')=>`<div><label class="text-xs text-slate-500">${l}</label><input id="${i}" type="${t}" value="${esc(v??'')}" class="${INP}"></div>`;
+  modal(`<h3 class="font-bold text-lg mb-3">${id?'Editar':'Nuevo'} repuesto</h3><div class="grid sm:grid-cols-2 gap-3">${f('r-cod','Código / SKU',r.codigo)}${f('r-nom','Nombre',r.nombre)}${f('r-cat','Categoría',r.categoria||'Varios')}${f('r-stk','Stock',r.stock??0,'number')}${f('r-min','Stock mínimo',r.min??3,'number')}${f('r-cos','Costo ('+MONEDA+')',r.costo,'number')}${f('r-ven','Venta ('+MONEDA+')',r.venta,'number')}</div>
+  <div class="flex gap-2 mt-4"><button class="${BTN} flex-1" onclick="saveRep(${id||0})">Guardar</button><button class="${BTN2}" onclick="closeM()">Cancelar</button></div>`)}
+async function saveRep(id){const codigo=val('r-cod').toUpperCase(),nombre=val('r-nom');if(!codigo||!nombre){toast('Falta código o nombre','warn');return}
+  const row={codigo,nombre,categoria:val('r-cat')||'Varios',stock:+val('r-stk')||0,min:+val('r-min')||0,costo:+val('r-cos')||0,venta:+val('r-ven')||0};
+  try{await run(id?sb.from('repuestos').update(row).eq('id',id):sb.from('repuestos').insert(row));closeM();toast('Repuesto guardado ✓');loadAll()}catch(e){}}
+async function delRep(id){if(!confirm('¿Eliminar este repuesto?'))return;try{await run(sb.from('repuestos').delete().eq('id',id));loadAll()}catch(e){}}
 
 async function askAI(){
   const q=val('ai-q'),key=S.cfg.gemini_key;
