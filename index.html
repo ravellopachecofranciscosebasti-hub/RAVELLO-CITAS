@@ -453,7 +453,7 @@ async function saveSrv(id,citaId){
   if(tipo==='Cambio de aceite'){if(pkm===null&&km)pkm=km+3000;if(!pfe){const d=new Date(fecha+'T00:00:00');d.setMonth(d.getMonth()+3);pfe=dstr(d)}}
   const old=id?S.servicios.find(x=>x.id==id):null,m=S.motos.find(x=>x.placa===placa);
   try{
-    if(!m)await run(sb.from('motos').insert({placa,cliente:'Cliente General',km,fase=0,fasef=hoy()}));
+    if(!m)await run(sb.from('motos').insert({placa,cliente:'Cliente General',km,fase:0,fasef:hoy()}));
     else{const u={};if(km>m.km)u.km=km;if(m.fase<0){u.fase=0;u.fasef=hoy()}if(Object.keys(u).length)await run(sb.from('motos').update(u).eq('placa',placa))}
     if(old)for(const r of old.repuestos_usados||[])if(r.repuestoId)await run(sb.rpc('ajustar_stock',{p_id:r.repuestoId,p_delta:r.cantidad}));
     for(const r of lines)if(r.repuestoId)await run(sb.rpc('ajustar_stock',{p_id:r.repuestoId,p_delta:-r.cantidad}));
