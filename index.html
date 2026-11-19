@@ -111,7 +111,7 @@
 const SUPABASE_URL      = 'https://rlmmpfybslnolzhgwfim.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJsbW1wZnlic2xub2x6aGd3ZmltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ3OTI2ODksImV4cCI6MjExMDM2ODY4OX0.ROxinnB7DS18XC5s1SsySwcIWqGWscKU3jyrawG2BDQ';
 const TALLER_WA = '51922684664', CC = '51', LOCALE = 'es-PE', MONEDA = 'S/';
-const CFG_DEF = {nombre:'MOTO TECH TALLER',ruc:'RUC: ',tel:'+51 922 684 664',dir:'',pie:'¡Gracias por su preferencia! Garantía de 30 días.',gsheet:'https://docs.google.com/spreadsheets/d/e/2PACX-1vRC5xxaXyGyKHhr8idIGdLALdZIhEwn27Q_TtrFPpghGjReCvRAPr9XK-HNatd-ag/pubhtml'};
+const CFG_DEF = {nombre:'MOTO TECH TALLER',ruc:'RUC: ',tel:'+51 922 684 664',dir:'',pie:'¡Gracias por su preferencia! Garantía de 30 días.',gsheet:'https://docs.google.com/spreadsheets/d/e/2PACX-1vRC5xxaXyGyKHhr8idIGdLALdZIhEwn27Q_TtrFPpghGjReCvRAPr9XK-HNatd-ag/pubhtml',gemini_key:''};
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -303,7 +303,7 @@ const citasPend=()=>S.citas.filter(c=>c.estado==='pendiente');
 
 /* ===================== NAVEGACIÓN TALLER ===================== */
 const NAV=[['dashboard','fa-gauge','Inicio'],['motos','fa-motorcycle','Motos'],['servicios','fa-screwdriver-wrench','Órdenes'],['citas','fa-calendar-check','Citas'],['inventario','fa-boxes-stacked','Stock'],['finanzas','fa-coins','Caja'],['ia','fa-robot','IA Taller'],['ajustes','fa-gear','Ajustes']];
-  function buildNav(){
+function buildNav(){
   $('side').innerHTML=NAV.map(([id,ic,n])=>`<button data-t="${id}" onclick="go('${id}')" class="nv w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-left"><i class="fa-solid ${ic} w-5 text-center"></i>${n}${id==='citas'?'<span id="bd-c" class="ml-auto bg-brand-500 text-white text-[10px] rounded-full px-1.5" hidden></span>':''}</button>`).join('');
   $('bottom').innerHTML=NAV.map(([id,ic,n])=>`<button data-t="${id}" onclick="go('${id}')" class="nv flex-1 py-2 text-[10px] font-semibold"><i class="fa-solid ${ic} block text-base mb-0.5"></i>${n}</button>`).join('');
 }
@@ -378,6 +378,7 @@ ia(){
   <div id="ai-out" class="mt-3"></div>`;
 }
 };
+
 /* ---------- MOTOS ---------- */
 function fillMotos(){
   const q=($('q')?.value||'').toLowerCase().replace(/\s+/g,'');
@@ -453,7 +454,7 @@ async function saveSrv(id,citaId){
   const old=id?S.servicios.find(x=>x.id==id):null,m=S.motos.find(x=>x.placa===placa);
   try{
     if(!m)await run(sb.from('motos').insert({placa,cliente:'Cliente General',km,fase:0,fasef:hoy()}));
-    else{const u={};if(km>m.km)u.km=km;if(m.fase<0){u.fase=0;u.fasef=hoy()}if(Object.keys(u).length)await run(sb.from('motos').update(u).eq('placa',placa))}
+    else{const u={};if(km>m.km)u.km=km;if(m.fase<0){u.fase=0;u.fasef:hoy()}if(Object.keys(u).length)await run(sb.from('motos').update(u).eq('placa',placa))}
     if(old)for(const r of old.repuestos_usados||[])if(r.repuestoId)await run(sb.rpc('ajustar_stock',{p_id:r.repuestoId,p_delta:r.cantidad}));
     for(const r of lines)if(r.repuestoId)await run(sb.rpc('ajustar_stock',{p_id:r.repuestoId,p_delta:-r.cantidad}));
     const row={placa,fecha,km,tipo,estado:$('s-estado').value,obs:val('s-obs'),pkm,pfe,mano_obra:+val('s-mo')||0,descuento:+val('s-dc')||0,repuestos_usados:lines,total};
@@ -487,6 +488,13 @@ async function citaOT(id){const c=S.citas.find(x=>x.id==id),placa=norm(c.placa);
     srvModal(null,{placa,km:c.km||0,tipo:t,fecha:hoy(),obs:'Cita web: '+(c.detalles||''),cita_id:c.id,estado:'En proceso'})}catch(e){}}
 
 /* ---------- INVENTARIO ---------- */
+function fillInv(){
+  const raw=$('qi')?.value||'',q=raw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+  const list=S.repuestos.filter(r=>!q||(r.codigo+' '+r.nombre+' '+r.categoria).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').includes(q));
+  $('inv').innerHTML=(q?`<div class="text-xs text-slate-500 mb-2">Mostrando <b>${list.length}</b> resultados para "${esc(raw)}" · <button onclick="$('qi').value='';fillInv()" class="text-brand-500 underline">Limpiar</button></div>`:'')+
+  (list.map(r=>{const low=+r.stock<=+r.min;return`<div class="${CARD} p-3 flex flex-wrap items-center gap-3 justify-between"><div class="min-w-0"><b>${esc(r.nombre)}</b><div class="text-xs text-slate-500">${esc(r.codigo)} · ${esc(r.categoria)} · costo ${money(r.costo)} · venta <b>${money(r.venta)}</b> · mín ${r.min}</div></div>
+   <div class="flex items-center gap-1.5"><button class="${BTN2}" onclick="stock(${r.id},-1)">−</button><span class="w-12 text-center font-extrabold ${low?'text-red-500':''}">${r.stock}</span><button class="${BTN2}" onclick="stock(${r.id},1)">+</button><button class="${BTN2}" onclick="repModal(${r.id})"><i class="fa-solid fa-pen"></i></button><button class="${BTN2} text-red-500" onclick="delRep(${r.id})"><i class="fa-solid fa-trash"></i></button></div></div>`}).join('')||'<p class="text-slate-500">No se encontraron repuestos con ese criterio.</p>');
+}
 async function stock(id,d){try{await run(sb.rpc('ajustar_stock',{p_id:id,p_delta:d}));loadAll()}catch(e){}}
 function repModal(id){const r=S.repuestos.find(x=>x.id==id)||{},f=(i,l,v,t='text')=>`<div><label class="text-xs text-slate-500">${l}</label><input id="${i}" type="${t}" value="${esc(v??'')}" class="${INP}"></div>`;
   modal(`<h3 class="font-bold text-lg mb-3">${id?'Editar':'Nuevo'} repuesto</h3><div class="grid sm:grid-cols-2 gap-3">${f('r-cod','Código / SKU',r.codigo)}${f('r-nom','Nombre',r.nombre)}${f('r-cat','Categoría',r.categoria||'Varios')}${f('r-stk','Stock',r.stock??0,'number')}${f('r-min','Stock mínimo',r.min??3,'number')}${f('r-cos','Costo ('+MONEDA+')',r.costo,'number')}${f('r-ven','Venta ('+MONEDA+')',r.venta,'number')}</div>
@@ -496,6 +504,7 @@ async function saveRep(id){const codigo=val('r-cod').toUpperCase(),nombre=val('r
   try{await run(id?sb.from('repuestos').update(row).eq('id',id):sb.from('repuestos').insert(row));closeM();toast('Repuesto guardado ✓');loadAll()}catch(e){}}
 async function delRep(id){if(!confirm('¿Eliminar este repuesto?'))return;try{await run(sb.from('repuestos').delete().eq('id',id));loadAll()}catch(e){}}
 
+/* ---------- COPILOTO IA ---------- */
 async function askAI(){
   const q=val('ai-q'),key=S.cfg.gemini_key;
   if(!key){toast('Primero pega tu API Key de Gemini en Ajustes','warn');go('ajustes');return}
@@ -518,7 +527,7 @@ Consulta del dueño del taller: ${q}`;
   }catch(e){toast(e.message,'err')}
   finally{btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-wand-magic-sparkles"></i> Consultar a la IA'}
 }
-  
+
 /* Google Sheets (CSV publicado) / Excel local → upsert masivo en Supabase */
 function gsUrl(u){u=(u||'').trim();if(!u)return'';if(u.includes('/pubhtml'))return u.replace('/pubhtml','/pub?output=csv');if(/\/edit/.test(u))return u.replace(/\/edit.*$/,'/pub?output=csv');return u}
 async function syncGS(){const u=gsUrl(S.cfg.gsheet);if(!u){toast('Configura la URL de Google Sheets en Ajustes','warn');return}
