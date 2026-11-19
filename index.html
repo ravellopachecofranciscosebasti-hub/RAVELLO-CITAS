@@ -522,21 +522,29 @@ async function askAI(){
     if(!listRes.ok) throw new Error(listData.error ? listData.error.message : 'API Key invalida');
     const valid = (listData.models || []).filter(function(m){
       return m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent') && m.name.includes('gemini') && !m.name.includes('2.5') && !m.name.includes('2.0') && !m.name.includes('1.5');
-    });
-    const chosen = valid.find(function(m){ return m.name.includes('3.8-flash') || m.name.includes('flash'); }) || valid[0];
-    const modelPath = chosen ? chosen.name : 'models/gemini-3.8-flash';
+    }).map(function(m){ return m.name; });
 
-    const url = 'https://generativelanguage.googleapis.com/v1beta/' + modelPath + ':generateContent?key=' + encodeURIComponent(key);
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({contents: [{parts: [{text: prompt}]}]})
-    });
-    const text = await res.text();
-    let data;
-    try { data = JSON.parse(text); } catch(e) { throw new Error('Error de respuesta del servidor (' + res.status + ')'); }
-    if(!res.ok) throw new Error(data.error && data.error.message ? data.error.message : 'Error al consultar Gemini');
-    const reply = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0].text) || 'Sin respuesta.';
+    const candidates = valid.length ? valid : ['models/gemini-3.8-flash'];
+    let reply = null, lastErr = 'Error al consultar Gemini';
+
+    for(let i = 0; i < candidates.length; i++){
+      const url = 'https://generativelanguage.googleapis.com/v1beta/' + candidates[i] + ':generateContent?key=' + encodeURIComponent(key);
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({contents: [{parts: [{text: prompt}]}]})
+      });
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch(e) { lastErr = 'Error de respuesta (' + res.status + ')'; continue; }
+      if(res.ok && data.candidates && data.candidates[0]){
+        reply = data.candidates[0].content.parts[0].text;
+        break;
+      }
+      lastErr = (data.error && data.error.message) ? data.error.message : lastErr;
+    }
+
+    if(!reply) throw new Error(lastErr);
     out.innerHTML = '<div class="' + CARD + ' p-4 text-sm whitespace-pre-wrap leading-relaxed fade">' + esc(reply) + '</div>';
   }catch(e){
     toast(e.message, 'err');
