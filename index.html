@@ -302,8 +302,8 @@ const lowStock=()=>S.repuestos.filter(r=>+r.stock<=+r.min);
 const citasPend=()=>S.citas.filter(c=>c.estado==='pendiente');
 
 /* ===================== NAVEGACIÓN TALLER ===================== */
-const NAV=[['dashboard','fa-gauge','Inicio'],['motos','fa-motorcycle','Motos'],['servicios','fa-screwdriver-wrench','Órdenes'],['citas','fa-calendar-check','Citas'],['inventario','fa-boxes-stacked','Stock'],['finanzas','fa-coins','Caja'],['ajustes','fa-gear','Ajustes']];
-function buildNav(){
+const NAV=[['dashboard','fa-gauge','Inicio'],['motos','fa-motorcycle','Motos'],['servicios','fa-screwdriver-wrench','Órdenes'],['citas','fa-calendar-check','Citas'],['inventario','fa-boxes-stacked','Stock'],['finanzas','fa-coins','Caja'],['ia','fa-robot','IA Taller'],['ajustes','fa-gear','Ajustes']];
+  function buildNav(){
   $('side').innerHTML=NAV.map(([id,ic,n])=>`<button data-t="${id}" onclick="go('${id}')" class="nv w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-left"><i class="fa-solid ${ic} w-5 text-center"></i>${n}${id==='citas'?'<span id="bd-c" class="ml-auto bg-brand-500 text-white text-[10px] rounded-full px-1.5" hidden></span>':''}</button>`).join('');
   $('bottom').innerHTML=NAV.map(([id,ic,n])=>`<button data-t="${id}" onclick="go('${id}')" class="nv flex-1 py-2 text-[10px] font-semibold"><i class="fa-solid ${ic} block text-base mb-0.5"></i>${n}</button>`).join('');
 }
@@ -356,12 +356,27 @@ finanzas(){
   return`<h1 class="text-xl font-extrabold mb-3">Caja y finanzas</h1><div class="grid grid-cols-2 gap-3 mb-3">${kpi('Ingresos (12 meses)',money(T.i),'','fa-sack-dollar','text-emerald-500')}${kpi('Ganancia neta',money(T.g),'Ingresos − costo de repuestos','fa-chart-line')}</div>
   <div class="${CARD} p-4 space-y-3">${ks.map(k=>{const o=mm[k];return`<div><div class="flex justify-between text-sm"><b>${k.split('-').reverse().join('/')}</b><span>${o.n} órdenes · ${money(o.ing)} · <b class="text-emerald-600">${money(o.ing-o.rep)}</b></span></div><div class="h-2 rounded-full bg-slate-200 dark:bg-slate-800 mt-1"><i class="block h-full rounded-full bg-brand-500" style="width:${o.ing/mx*100}%"></i></div></div>`}).join('')||'<p class="text-slate-500 text-sm">Sin datos todavía.</p>'}</div>`},
 
-ajustes(){const c=S.cfg,f=(id,l,v)=>`<div><label class="text-xs text-slate-500">${l}</label><input id="${id}" value="${esc(v)}" class="${INP}"></div>`;
+ajustes(){const c=S.cfg,f=(id,l,v,t='text')=>`<div><label class="text-xs text-slate-500">${l}</label><input id="${id}" type="${t}" value="${esc(v||'')}" class="${INP}"></div>`;
   return`<h1 class="text-xl font-extrabold mb-3">Ajustes</h1><div class="${CARD} p-4 grid sm:grid-cols-2 gap-3">${f('c-nombre','Nombre del taller',c.nombre)}${f('c-ruc','RUC',c.ruc)}${f('c-tel','Teléfono',c.tel)}${f('c-dir','Dirección',c.dir)}
-  <div class="sm:col-span-2">${f('c-pie','Pie del recibo',c.pie)}</div><div class="sm:col-span-2">${f('c-gs','URL de Google Sheets (publicada como web / CSV)',c.gsheet)}</div>
-  <button class="${BTN} sm:col-span-2" onclick="saveCfg()">Guardar ajustes</button><button class="${BTN2} sm:col-span-2" onclick="backup()"><i class="fa-solid fa-download"></i> Descargar respaldo JSON</button></div>`}
-};
+  <div class="sm:col-span-2">${f('c-pie','Pie del recibo',c.pie)}</div>
+  <div class="sm:col-span-2">${f('c-gs','URL de Google Sheets (publicada como web / CSV)',c.gsheet)}</div>
+  <div class="sm:col-span-2">${f('c-ai','API Key de Gemini (para el Asistente IA del taller)',c.gemini_key,'password')}</div>
+  <button class="${BTN} sm:col-span-2" onclick="saveCfg()">Guardar ajustes</button><button class="${BTN2} sm:col-span-2" onclick="backup()"><i class="fa-solid fa-download"></i> Descargar respaldo JSON</button></div>`},
 
+ia(){
+  return`<h1 class="text-xl font-extrabold mb-3"><i class="fa-solid fa-robot text-brand-500"></i> Copiloto IA del Taller</h1>
+  <div class="${CARD} p-4 space-y-3">
+    <p class="text-xs text-slate-500">Consulta diagnósticos de motos, arma presupuestos usando tu stock real o redacta mensajes para clientes. ${!S.cfg.gemini_key?'<b class="text-amber-500">Configura tu API Key de Gemini en Ajustes para activarlo.</b>':''}</p>
+    <div class="flex flex-wrap gap-2 text-xs">
+      <button class="${BTN2}" onclick="$('ai-q').value='Tengo una moto con falla de encendido en frío y pérdida de potencia en alta. ¿Qué reviso y qué repuestos de mi stock me recomiendas cotizar?'">🔧 Diagnóstico rápido</button>
+      <button class="${BTN2}" onclick="$('ai-q').value='Revisa mi inventario actual y dime qué repuestos críticos están bajos o agotados para hacer pedido.'">📦 Analizar mi stock</button>
+      <button class="${BTN2}" onclick="$('ai-q').value='Redacta un mensaje cordial de WhatsApp avisando a un cliente que su moto ya pasó diagnóstico y necesita cambio de aceite y kit de arrastre.'">💬 Mensaje WhatsApp</button>
+    </div>
+    <textarea id="ai-q" rows="3" placeholder="Escribe tu consulta mecánica, pide un presupuesto o consulta sobre tus motos y repuestos..." class="${INP}"></textarea>
+    <button id="ai-btn" onclick="askAI()" class="${BTN} w-full"><i class="fa-solid fa-wand-magic-sparkles"></i> Consultar a la IA</button>
+  </div>
+  <div id="ai-out" class="mt-3"></div>`;
+}
 /* ---------- MOTOS ---------- */
 function fillMotos(){
   const q=($('q')?.value||'').toLowerCase().replace(/\s+/g,'');
@@ -385,8 +400,36 @@ function recordar(p){const m=S.motos.find(x=>x.placa===p),r=evalAll(svOf(p),m.km
   waOpen(m.tel||TALLER_WA,'👋 Hola '+m.cliente+', te saludamos de '+S.cfg.nombre+'. Tu moto '+m.placa+' registra '+kmf(m.km)+' y su '+e.c.n.toLowerCase()+' está '+(e.lvl==2?'VENCIDO':'PRÓXIMO')+'. ¿Te reservamos un cupo esta semana?')}
 
 /* ---------- ÓRDENES DE SERVICIO ---------- */
-const lineHtml=(r={})=>`<div class="ln grid grid-cols-12 gap-1.5 items-center"><select class="rid ${INP} col-span-12 sm:col-span-4" onchange="pickRep(this)"><option value="">Personalizado</option>${S.repuestos.map(x=>`<option value="${x.id}" ${x.id==r.repuestoId?'selected':''}>${esc(x.nombre)} (${x.stock})</option>`).join('')}</select><input class="nm ${INP} col-span-12 sm:col-span-3" placeholder="Nombre" value="${esc(r.nombre||'')}"><input type="number" min="1" class="ct ${INP} col-span-3 sm:col-span-1" value="${r.cantidad||1}" oninput="calcTot()"><input type="number" class="pv ${INP} col-span-4 sm:col-span-2" placeholder="Venta" value="${r.precioVenta??''}" oninput="calcTot()"><input type="number" class="cs ${INP} col-span-4 sm:col-span-1" placeholder="Costo" value="${r.costo??''}"><button type="button" onclick="this.parentNode.remove();calcTot()" class="col-span-1 text-red-500"><i class="fa-solid fa-xmark"></i></button></div>`;
-function pickRep(sel){const r=S.repuestos.find(x=>x.id==sel.value),l=sel.closest('.ln');if(r){l.querySelector('.nm').value=r.nombre;l.querySelector('.pv').value=r.venta;l.querySelector('.cs').value=r.costo}calcTot()}
+const lineHtml=(r={})=>`<div class="ln grid grid-cols-12 gap-1.5 items-center relative">
+  <input type="hidden" class="rid" value="${r.repuestoId||''}">
+  <div class="col-span-12 sm:col-span-6 relative">
+    <input class="nm ${INP}" placeholder="🔎 Buscar repuesto por nombre o código..." value="${esc(r.nombre||'')}" oninput="searchRep(this)" onfocus="searchRep(this)" autocomplete="off">
+    <div class="dd hidden absolute left-0 right-0 top-full mt-1 z-50 max-h-48 overflow-y-auto rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 shadow-lg text-xs"></div>
+  </div>
+  <input type="number" min="1" class="ct ${INP} col-span-3 sm:col-span-2" placeholder="Cant." value="${r.cantidad||1}" oninput="calcTot()">
+  <input type="number" class="pv ${INP} col-span-4 sm:col-span-2" placeholder="Venta" value="${r.precioVenta??''}" oninput="calcTot()">
+  <input type="number" class="cs ${INP} col-span-4 sm:col-span-1" placeholder="Costo" value="${r.costo??''}">
+  <button type="button" onclick="this.parentNode.remove();calcTot()" class="col-span-1 text-red-500 text-center"><i class="fa-solid fa-xmark"></i></button>
+</div>`;
+
+function searchRep(inp){
+  const l=inp.closest('.ln'),dd=l.querySelector('.dd'),q=inp.value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+  l.querySelector('.rid').value='';
+  if(!q){dd.classList.add('hidden');return}
+  const matches=S.repuestos.filter(x=>(x.codigo+' '+x.nombre+' '+x.categoria).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').includes(q)).slice(0,12);
+  if(!matches.length){dd.innerHTML='<div class="p-2.5 text-slate-400">Sin coincidencias (se guardará como personalizado)</div>';dd.classList.remove('hidden');return}
+  dd.innerHTML=matches.map(x=>`<div onmousedown="selectRep(this,${x.id})" class="p-2.5 hover:bg-brand-50 dark:hover:bg-slate-700 cursor-pointer border-b last:border-0 border-slate-100 dark:border-slate-700 flex justify-between items-center">
+    <div><b>${esc(x.nombre)}</b> <span class="text-slate-400">[${esc(x.codigo)}]</span></div>
+    <div class="text-right"><b class="text-emerald-600">${money(x.venta)}</b> · <span class="${+x.stock<=+x.min?'text-red-500 font-bold':'text-slate-400'}">Stock: ${x.stock}</span></div>
+  </div>`).join('');
+  dd.classList.remove('hidden');
+}
+function selectRep(el,id){
+  const r=S.repuestos.find(x=>x.id==id),l=el.closest('.ln');
+  if(r){l.querySelector('.rid').value=r.id;l.querySelector('.nm').value=r.nombre;l.querySelector('.pv').value=r.venta;l.querySelector('.cs').value=r.costo}
+  l.querySelector('.dd').classList.add('hidden');calcTot();
+}
+document.addEventListener('click',e=>{if(!e.target.closest('.ln'))document.querySelectorAll('.dd').forEach(d=>d.classList.add('hidden'))});
 function addLine(){$('lines').insertAdjacentHTML('beforeend',lineHtml())}
 function readLines(){return[...document.querySelectorAll('.ln')].map(l=>({repuestoId:+l.querySelector('.rid').value||null,nombre:l.querySelector('.nm').value.trim()||'Repuesto',cantidad:+l.querySelector('.ct').value||1,precioVenta:+l.querySelector('.pv').value||0,costo:+l.querySelector('.cs').value||0})).filter(r=>r.repuestoId||r.nombre!=='Repuesto'||r.precioVenta)}
 function calcTot(){const t=Math.max(0,(+$('s-mo').value||0)+readLines().reduce((a,r)=>a+r.precioVenta*r.cantidad,0)-(+$('s-dc').value||0));$('s-tot').textContent=money(t);return t}
@@ -443,18 +486,37 @@ async function citaOT(id){const c=S.citas.find(x=>x.id==id),placa=norm(c.placa);
     srvModal(null,{placa,km:c.km||0,tipo:t,fecha:hoy(),obs:'Cita web: '+(c.detalles||''),cita_id:c.id,estado:'En proceso'})}catch(e){}}
 
 /* ---------- INVENTARIO ---------- */
-function fillInv(){const q=($('qi')?.value||'').toLowerCase();
-  $('inv').innerHTML=S.repuestos.filter(r=>!q||(r.codigo+r.nombre+r.categoria).toLowerCase().includes(q)).map(r=>{const low=+r.stock<=+r.min;return`<div class="${CARD} p-3 flex flex-wrap items-center gap-3 justify-between"><div class="min-w-0"><b>${esc(r.nombre)}</b><div class="text-xs text-slate-500">${esc(r.codigo)} · ${esc(r.categoria)} · costo ${money(r.costo)} · venta <b>${money(r.venta)}</b> · mín ${r.min}</div></div>
-   <div class="flex items-center gap-1.5"><button class="${BTN2}" onclick="stock(${r.id},-1)">−</button><span class="w-12 text-center font-extrabold ${low?'text-red-500':''}">${r.stock}</span><button class="${BTN2}" onclick="stock(${r.id},1)">+</button><button class="${BTN2}" onclick="repModal(${r.id})"><i class="fa-solid fa-pen"></i></button><button class="${BTN2} text-red-500" onclick="delRep(${r.id})"><i class="fa-solid fa-trash"></i></button></div></div>`}).join('')||'<p class="text-slate-500">Sin repuestos. Sincroniza tu hoja o agrega el primero.</p>'}
-async function stock(id,d){try{await run(sb.rpc('ajustar_stock',{p_id:id,p_delta:d}));loadAll()}catch(e){}}
-function repModal(id){const r=S.repuestos.find(x=>x.id==id)||{},f=(i,l,v,t='text')=>`<div><label class="text-xs text-slate-500">${l}</label><input id="${i}" type="${t}" value="${esc(v??'')}" class="${INP}"></div>`;
-  modal(`<h3 class="font-bold text-lg mb-3">${id?'Editar':'Nuevo'} repuesto</h3><div class="grid sm:grid-cols-2 gap-3">${f('r-cod','Código / SKU',r.codigo)}${f('r-nom','Nombre',r.nombre)}${f('r-cat','Categoría',r.categoria||'Varios')}${f('r-stk','Stock',r.stock??0,'number')}${f('r-min','Stock mínimo',r.min??3,'number')}${f('r-cos','Costo ('+MONEDA+')',r.costo,'number')}${f('r-ven','Venta ('+MONEDA+')',r.venta,'number')}</div>
-  <div class="flex gap-2 mt-4"><button class="${BTN} flex-1" onclick="saveRep(${id||0})">Guardar</button><button class="${BTN2}" onclick="closeM()">Cancelar</button></div>`)}
-async function saveRep(id){const codigo=val('r-cod').toUpperCase(),nombre=val('r-nom');if(!codigo||!nombre){toast('Falta código o nombre','warn');return}
-  const row={codigo,nombre,categoria:val('r-cat')||'Varios',stock:+val('r-stk')||0,min:+val('r-min')||0,costo:+val('r-cos')||0,venta:+val('r-ven')||0};
-  try{await run(id?sb.from('repuestos').update(row).eq('id',id):sb.from('repuestos').insert(row));closeM();toast('Repuesto guardado ✓');loadAll()}catch(e){}}
-async function delRep(id){if(!confirm('¿Eliminar este repuesto?'))return;try{await run(sb.from('repuestos').delete().eq('id',id));loadAll()}catch(e){}}
+function fillInv(){
+  const raw=$('qi')?.value||'',q=raw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+  const list=S.repuestos.filter(r=>!q||(r.codigo+' '+r.nombre+' '+r.categoria).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').includes(q));
+  $('inv').innerHTML=(q?`<div class="text-xs text-slate-500 mb-2">Mostrando <b>${list.length}</b> resultados para "${esc(raw)}" · <button onclick="$('qi').value='';fillInv()" class="text-brand-500 underline">Limpiar</button></div>`:'')+
+  (list.map(r=>{const low=+r.stock<=+r.min;return`<div class="${CARD} p-3 flex flex-wrap items-center gap-3 justify-between"><div class="min-w-0"><b>${esc(r.nombre)}</b><div class="text-xs text-slate-500">${esc(r.codigo)} · ${esc(r.categoria)} · costo ${money(r.costo)} · venta <b>${money(r.venta)}</b> · mín ${r.min}</div></div>
+   <div class="flex items-center gap-1.5"><button class="${BTN2}" onclick="stock(${r.id},-1)">−</button><span class="w-12 text-center font-extrabold ${low?'text-red-500':''}">${r.stock}</span><button class="${BTN2}" onclick="stock(${r.id},1)">+</button><button class="${BTN2}" onclick="repModal(${r.id})"><i class="fa-solid fa-pen"></i></button><button class="${BTN2} text-red-500" onclick="delRep(${r.id})"><i class="fa-solid fa-trash"></i></button></div></div>`}).join('')||'<p class="text-slate-500">No se encontraron repuestos con ese criterio.</p>');
+}
 
+async function askAI(){
+  const q=val('ai-q'),key=S.cfg.gemini_key;
+  if(!key){toast('Primero pega tu API Key de Gemini en Ajustes','warn');go('ajustes');return}
+  if(!q){toast('Escribe una consulta para la IA','warn');return}
+  const btn=$('ai-btn'),out=$('ai-out');
+  btn.disabled=true;btn.innerHTML='<i class="fa-solid fa-spinner animate-spin"></i> Analizando taller...';
+  const stockCtx=S.repuestos.slice(0,80).map(r=>`${r.codigo}: ${r.nombre} (Stock: ${r.stock}, Venta: ${MONEDA}${r.venta})`).join(' | ');
+  const prompt=`Eres el mecánico jefe y asesor experto del taller de motos "${S.cfg.nombre}" en Lima, Perú. Responde de forma directa, práctica y estructurada.
+Inventario actual disponible en el taller: ${stockCtx || 'Sin repuestos cargados'}.
+Consulta del dueño del taller: ${q}`;
+  try{
+    const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(key)}`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})
+    });
+    const data=await res.json();
+    if(!res.ok)throw new Error(data.error?.message||'Error al consultar Gemini');
+    const reply=data.candidates?.[0]?.content?.parts?.[0]?.text||'Sin respuesta.';
+    out.innerHTML=`<div class="${CARD} p-4 text-sm whitespace-pre-wrap leading-relaxed fade">${esc(reply)}</div>`;
+  }catch(e){toast(e.message,'err')}
+  finally{btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-wand-magic-sparkles"></i> Consultar a la IA'}
+}
+  
 /* Google Sheets (CSV publicado) / Excel local → upsert masivo en Supabase */
 function gsUrl(u){u=(u||'').trim();if(!u)return'';if(u.includes('/pubhtml'))return u.replace('/pubhtml','/pub?output=csv');if(/\/edit/.test(u))return u.replace(/\/edit.*$/,'/pub?output=csv');return u}
 async function syncGS(){const u=gsUrl(S.cfg.gsheet);if(!u){toast('Configura la URL de Google Sheets en Ajustes','warn');return}
@@ -472,7 +534,7 @@ async function importRows(rows,origen){
   toast(origen+': '+arr.length+' repuestos sincronizados ✓');loadAll()}
 
 /* ---------- AJUSTES ---------- */
-async function saveCfg(){const data={nombre:val('c-nombre'),ruc:val('c-ruc'),tel:val('c-tel'),dir:val('c-dir'),pie:val('c-pie'),gsheet:val('c-gs')};
+async function saveCfg(){const data={nombre:val('c-nombre'),ruc:val('c-ruc'),tel:val('c-tel'),dir:val('c-dir'),pie:val('c-pie'),gsheet:val('c-gs'),gemini_key:val('c-ai')};
   try{await run(sb.from('config').upsert({id:1,data}));toast('Ajustes guardados ✓');loadAll()}catch(e){}}
 function backup(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,1)],{type:'application/json'}));a.download='respaldo-taller-'+hoy()+'.json';a.click()}
 
